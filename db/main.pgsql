@@ -34,8 +34,8 @@ CREATE TABLE Product(
 	productTypeVar productType NOT NULL,
 	imagePath text,
 	CONSTRAINT PRODUCT_PK PRIMARY KEY(pid),
-	CONSTRAINT PRODUCT_QUANTITY CHECK (quantity >= 0)
-	CONSTRAINT PRODUCT_PRICE_FORCE_TWO_DECIMAL_DIGITS CHECK (price = round(price, 2))
+	CONSTRAINT PRODUCT_QUANTITY CHECK (quantity >= 0),
+	CONSTRAINT PRODUCT_PRICE_FORCE_TWO_DECIMAL_DIGITS CHECK (price = round(price::numeric, 2))
 );
 
 CREATE TABLE Ingredient(
@@ -81,13 +81,13 @@ AS $$
 DECLARE
 	hashmap hstore = '';
 	ingredientCursor cursor(cusername text) for
-		SELECT IIP.ingredientName, SUM(S.quantity) AS timesSold,
+		SELECT IIP.ingredientName, SUM(S.quantity) AS timesSold
 		FROM Sale AS S JOIN IngredientInProduct AS IIP ON S.productPid = IIP.productPid
 		WHERE S.username = cusername
 		GROUP BY IIP.ingredientName;
-	ingredientCursorRow ingredientCursor%rowtype;
-	secondIngredientCursorRow cursor(cpid integer) for
-		SELECT IIP.ingredientName,
+	ingredientCursorRow record;
+	secondIngredientCursor cursor(cpid integer) for
+		SELECT IIP.ingredientName
 		FROM IngredientInProduct AS IIP
 		WHERE IIP.productPid = cpid;
 	tmpIngredientName text;
@@ -109,7 +109,7 @@ BEGIN
 		LOOP
 			fetch secondIngredientCursor into tmpIngredientName;
 			exit when not found;
-			suggestionScore += hashmap[secondIngredientCursor.ingredientName]::integer;
+			suggestionScore = suggestionScore + hashmap[secondIngredientCursor.ingredientName]::integer;
 		END LOOP;
 		close secondIngredientCursor;
 		RETURN NEXT;
