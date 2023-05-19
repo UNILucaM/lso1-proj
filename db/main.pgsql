@@ -38,25 +38,31 @@ CREATE TABLE Product(
 	pid serial,
 	productName text NOT NULL UNIQUE,
 	price float NOT NULL,
-	quantity integer NOT NULL,
 	productTypeVar productType NOT NULL,
 	imagePath text,
 	CONSTRAINT PRODUCT_PK PRIMARY KEY(pid),
-	CONSTRAINT PRODUCT_QUANTITY CHECK (quantity >= 0),
 	CONSTRAINT PRODUCT_PRICE_FORCE_TWO_DECIMAL_DIGITS CHECK (price = round(price::numeric, 2))
 );
 
+/*
+La quantità è in ml.
+*/
+
 CREATE TABLE Ingredient(
 	ingredientName text,
-	CONSTRAINT INGREDIENT_PK PRIMARY KEY(ingredientName)
+	quantity float,
+	CONSTRAINT INGREDIENT_PK PRIMARY KEY(ingredientName),
+	CONSTRAINT INGREDIENT_QUANTITY CHECK (quantity >= 0)
 );
 
 CREATE TABLE IngredientInProduct(
 	ingredientName text,
 	productPid integer,
+	quantityNeededInRecipe float,
 	CONSTRAINT INGREDIENTINPRODUCT_PK PRIMARY KEY(ingredientName, productPid),
 	CONSTRAINT INGREDIENTINPRODUCT_FK_INGREDIENT FOREIGN KEY (ingredientName) REFERENCES Ingredient(ingredientName),
-	CONSTRAINT INGREDIENTINPRODUCT_FK_PRODUCT FOREIGN KEY (productPid) REFERENCES Product(pid)
+	CONSTRAINT INGREDIENTINPRODUCT_FK_PRODUCT FOREIGN KEY (productPid) REFERENCES Product(pid),
+	CONSTRAINT INGREDIENTINPRODUCT_QUANTITY CHECK (quantityNeededInRecipe >= 0)
 );	 	
 
 /*
@@ -75,14 +81,68 @@ CREATE TABLE Sale(
 	CONSTRAINT SALE_QUANTITY CHECK (quantity >= 0)
 );
 	
-CREATE OR REPLACE procedure upsert_sale(pid integer, desiredQuantity integer, customerUsername text)
-LANGUAGE plpsgsql
+CREATE OR REPLACE procedure upsert_sale(customerUsername text, pid integer, desiredQuantity integer)
+LANGUAGE plpgsql
 AS $$
 BEGIN
 	INSERT INTO Sale (username, productPid, quantity)
 		VALUES (customerUsername, pid, desiredQuantity)
 	ON CONFLICT (username, productPid) DO UPDATE
-		SET quantity = sale.quantity + excluded.quantity;
+		SET Sale.quantity = sale.quantity + excluded.quantity;
+END
+$$
+
+CREATE OR REPLACE FUNCTION get_how_many_products_can_be_made(productPid integer)
+RETURNS integer
+LANGUAGE plpgsql
+AS $$
+DECLARE
+	minimumNumberOfPossibleUsages integer;
+	isFirstIteration boolean := TRUE;
+	ingredientCursor cursor(cpid integer) for
+		SELECT I.ingredientName, (floor((I.quantity::numeric/ IIP.quantityNeededInRecipe)))) AS numberOfPossibleUsages
+		FROM Ingredient as I JOIN IngredientInProduct AS IIP ON I.ingredientName = IIP.ingredientName
+		WHERE IIP.productPid = cpid;
+	ingredientCursorRow record;
+BEGIN
+	open ingredientCursor(productPid);
+	LOOP
+		fetch ingredientCursor into ingredientCursorRow;
+		exit when not found;
+		IF (ingredientCursorRow.numberOfPossibleUsages <= 0) THEN 
+			RETURN 0; 
+		END IF;
+		IF (isFirstIteration = TRUE) THEN
+			isFirstIteration = FALSE;
+			minimumNumberOfPossibleUsages = ingredientCursorRow.numberOfPossibleUsages;
+		ELSIF (minimumNumberOfPossibleUsages > ingredientCursorRow.numberOfPossibleUsages) THEN
+			minimumNumberOfPossibleUsages = ingredientCursorRow.numberOfPossibleUsages;
+		END IF;
+	END LOOP;
+	close ingredientCursor;
+	RETURN minimumNumberOfPossibleUsages;
+END
+$$
+
+CREATE OR REPLACE PROCEDURE update_ingredients_quantity(productPid integer, cquantity integer)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+	ingredientCursor cursor(cpid integer) for 
+		SELECT IIP.ingredientName, IIP.quantityNeededInRecipe
+		FROM IngredientInProduct AS IIP
+		WHERE IIP.productPid = cpid;
+	ingredientCursorRow record;
+BEGIN
+	open ingredientCursor(productPid);
+	LOOP
+		fetch ingredientCursor into ingredientCursorRow;
+		exit when not found;
+		UPDATE Ingredient AS I
+		SET quantity = I.quantity - (cquantity * ingredientCursorRow.quantityNeededInRecipe)
+		WHERE I.ingredientName = ingredientCursorRow.ingredientName;
+	END LOOP;
+	close ingredientCursor;
 END
 $$
 
@@ -104,16 +164,14 @@ BEGIN
 	IF TG_OP = 'INSERT' THEN
 		desiredQuantity = NEW.quantity;
 	ELSE
-		desiredQuantity = NEW.quantity - OLD.quantity 
-		IF desiredQuantity < 0 RETURN NEW;
+		desiredQuantity = NEW.quantity - OLD.quantity;
+		IF desiredQuantity <= 0 THEN 
+			RETURN NEW;
+		END IF;
 	END IF;
-	SELECT quantity INTO quantityInStock FOR UPDATE
-	FROM Product AS P
-	WHERE P.pid = productPid;
+	CALL quantityInStock = get_how_many_products_can_be_made(NEW.productPid);
 	IF (quantityInStock >= desiredQuantity) THEN
-		UPDATE Product
-		SET quantity = quantity - desiredQuantity
-		WHERE P.pid = productPid;
+		update_ingredients_quantity(NEW.productPid, desiredQuantity);
 		IF TG_OP = 'UPDATE' THEN
 			NEW.lastTimeBought = CAST(now() AS timestamp);
 		END IF;
@@ -125,7 +183,7 @@ END
 $$
 
 CREATE OR REPLACE TRIGGER UPDATE_LAST_TIME_BOUGHT
-BEFORE UPDATE ON Sale
+AFTER UPDATE OR INSERT ON Sale
 FOR EACH ROW
 EXECUTE PROCEDURE update_product_stock_quantity_and_register_sale();
 
@@ -212,32 +270,35 @@ BEGIN
 END
 $$
 
+CREATE TYPE ingredientWithQuantityType AS (ingredientName text, quantity float);
+
 /* 
 Inserisce un prodotto con i suoi relativi ingredienti:
 1. viene inserito il prodotto;
-1. si controlla che esistano gli ingredienti;
-	a. se non esistono, vengono inseriti;
-3. Viene creato per ogni ingrediente un record nella tabella IngredientInProduct con relativo pid.
+1. si controlla, per ogni ingredientWithQuantity in ingredientsWithQuantity, l'esistenza dell'ingrediente specificato con ingredientName:
+	a. se non esiste, viene inserito in Ingredient con quantityInStock settato a defaultNewIngredientQuantityInStock;
+3. Viene creato per ogni ingrediente un record nella tabella IngredientInProduct con relativo pid e quantity (specificato in ingredientWithQuantityType).
 */
 CREATE OR REPLACE PROCEDURE insert_product_with_ingredients
-	(productName text, price float, quantity integer, productTypeVar productType, imagePath text,
-	VARIADIC ingredients text[])
+	(productName text, price float, productTypeVar productType, imagePath text,
+	defaultNewIngredientQuantityInStock float,
+	VARIADIC ingredientsWithQuantity ingredientWithQuantityType[])
 LANGUAGE plpgsql
 AS $$
 DECLARE
 	tpid integer;
-	ingredient text;
+	ingredientWithQuantity ingredientWithQuantityType;
 BEGIN
 	EXECUTE 
-		'INSERT INTO Product VALUES(DEFAULT, $1, $2, $3, $4, $5) RETURNING pid;'
+		'INSERT INTO Product VALUES(DEFAULT, $1, $2, $3, $4) RETURNING pid;'
 	INTO tpid
-	USING productName, price, quantity, productTypeVar, imagePath;
-	FOREACH ingredient IN ARRAY ingredients
+	USING productName, price, productTypeVar, imagePath;
+	FOREACH ingredientWithQuantity IN ARRAY ingredientsWithQuantity
 	LOOP
 		EXECUTE 
-			'INSERT INTO Ingredient VALUES($1) ON CONFLICT DO NOTHING;
-			INSERT INTO IngredientInProduct VALUES($1, $2);'
-		USING ingredient, tpid;
+			'INSERT INTO Ingredient VALUES($1, $4) ON CONFLICT DO NOTHING;
+			INSERT INTO IngredientInProduct VALUES($1, $2, $3);'
+		USING ingredientWithQuantity.ingredientName, tpid, ingredientWithQuantity.quantity, defaultNewIngredientQuantityInStock;
 	END LOOP;
 END
 $$
