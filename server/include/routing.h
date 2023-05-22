@@ -4,11 +4,11 @@ I dettagli dell'implementazione sono disponibili in routing.c */
 
 typedef struct route{
 	char* path;
-	void (*request_handler)(char*);
+	void (*request_handler)(void*);
 	route* left;
 	route* right;
 }route;
 
-route* create_route(char*, void (*)(char*));
+route* create_route(char*, void (*)(void*));
 route* add_route(route*, route*);
 route* search(route*, char*);

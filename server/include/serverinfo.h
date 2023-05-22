@@ -7,4 +7,4 @@ typedef struct serverinfo{
 } serverinfo;
 
 
-struct serverinfo* create_server(int, int);
+serverinfo* create_server(int, int);

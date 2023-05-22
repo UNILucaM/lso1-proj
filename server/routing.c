@@ -1,11 +1,11 @@
 #include <stdlib.h>
-import "route.h"
+#include <routing.h>
 
 /*Implementazione basata su ABR.
 Si usa il risultato di strcmp sul valore path
 per i confronti.*/
 
-route* create_route(char* path, void (*request_handler)(char*)){
+route* create_route(char* path, void (*request_handler)(void*)){
 	route *route = malloc(sizeof(route));
 	if (route == NULL) return;
 	route->path = path;
