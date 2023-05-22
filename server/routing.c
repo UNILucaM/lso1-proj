@@ -5,10 +5,11 @@
 Si usa il risultato di strcmp sul valore path
 per i confronti.*/
 
-route* create_route(char* path, void (*request_handler)(void*)){
+route* create_route(char* path, void (*request_handler)(void*), routeinfo *info){
 	route *route = malloc(sizeof(route));
 	if (route == NULL) return;
 	route->path = path;
+	route->info = info;
 	route->request_handler = request_handler;
 	route->left = NULL;
 	route->right = NULL;

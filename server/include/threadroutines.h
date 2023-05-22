@@ -1,7 +1,13 @@
-struct handleConnectionRoutineInput{
+typedef struct handleconnectioninput{
 	int fd;
-	int BUFSIZE;
-}
+	route* routeroot;
+} handleconnectioninput;
+
+typedef struct handlerequestinput{
+	char* body;
+	int contentLength;
+	char* arguments;
+} handlerequestinput;
 
 void *thread_handle_connection_routine(void*);
 void *thread_register_routine(void*);
