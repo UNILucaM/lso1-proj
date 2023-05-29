@@ -1,0 +1,1 @@
+char *chainstrcat(char*, char*);
