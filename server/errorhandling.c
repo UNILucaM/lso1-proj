@@ -1,9 +1,9 @@
 #include <stdio.h> 
 #include <stdlib.h>
-#include "log.h"
+#include "mlog.h"
 
 void fatal(char* errmsg){
-	log("FATAL", errmsg);
+	mlog("FATAL", errmsg);
 	perror(NULL);
-	exit(EXIT_FAILED);
+	exit(EXIT_FAILURE);
 }

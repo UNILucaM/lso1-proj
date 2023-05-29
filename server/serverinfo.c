@@ -31,5 +31,5 @@ serverinfo* create_server(int port, int listenqueuesize){
 		sizeof(serverinfo->server_address);
 	if (bindresult < 0) fatal("Could not bind.");
 	listen(serverinfo->server_fd, listenqueuesize);
-	log("SERVER", "Created server successfully.");
+	mlog("SERVER", "Created server successfully.");
 }

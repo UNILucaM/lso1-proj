@@ -14,7 +14,7 @@
 #include <sys/un.h>
 
 #include "errorhandling.h"
-#include "log.h"
+#include "mlog.h"
 #include "serverinfo.h"
 #include "bstnode.h"
 #include "threadroutines.h"
@@ -44,16 +44,16 @@ int main(){
 	handleconnectioninput *hci;
 	int threadCreateRetVal;
 	while(1){
-		log("SERVER", "Waiting for new connection...");
+		mlog("SERVER", "Waiting for new connection...");
 		int fd = accept(server->server_fd, NULL, NULL);
 		if (fd < 0) fatal("Cannot open new connection.");
-		log("SERVER", "New connection established!");
+		mlog("SERVER", "New connection established!");
 		hci = malloc(sizeof(handleconnectioninput);
 		hci->fd = fd;
 		hci->routeroot = routeroot;
 		threadCreateRetVal = pthread_create(&tid, NULL, &thread_handle_connection_routine, (void*) hci);
 		if (threadCreateRetVal != 0){
-			log("SERVER", strerror(createRetValue));
+			mlog("SERVER", strerror(createRetValue));
 			close(fd);
 			free(hci);
 		} else pthread_detach(tid);

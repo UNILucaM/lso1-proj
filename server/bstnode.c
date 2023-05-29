@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <stdarg.h>
-#inlcude <string.h>
+#include <string.h>
 #include "bstnode.h"
 
 /*Implementazione basata su ABR.
@@ -42,7 +42,7 @@ bstnode *init_bst(bstnode *node, ...){
 	return root;	
 }
 
-bstnode *search(node* root, char* key){
+bstnode *search(bstnode* root, char* key){
 	if (root == NULL) return NULL;
 	int strcmpresult = strcmp(root->key, key);
 	if (strcmpresult == 0) return root;

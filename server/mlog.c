@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <time.h>
-#include "log.h"
+#include "mlog.h"
 #include <stdlib.h>
 
-void log(char* tag, char* message){
+void mlog(char* tag, char* message){
 
 	time_t currenttime;
 	now(&currenttime);

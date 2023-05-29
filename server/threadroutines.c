@@ -1,6 +1,6 @@
 #include "threadroutines.h"
 #include "config.h"
-#include "log.h"
+#include "mlog.h"
 #include "httphelper.h"
 #include "bstnode.h"
 
@@ -75,7 +75,7 @@ void *thread_handle_connection_routine(void* inputptr){
 	
 	if (buf == NULL || pathbuf == NULL || methodbuf == NULL || tmppathbuf == NULL 
 	|| headernamebuf == NULL || valuebuf == NULL || isHeaderFuncOutOfMemory == NULL){
-		log("SERVER-CONN", 
+		mlog("SERVER-CONN", 
 			"Could not allocate memory for request.");
 		return;
 	}
@@ -87,7 +87,7 @@ void *thread_handle_connection_routine(void* inputptr){
 				int reallocSize = (bytesReadFromNextMessage < BUFSIZE) ? BUFSIZE : bytesReadFromNextMessage;
 				buf = realloc(buf, reallocSize);
 				if (buf == NULL){
-					log("SERVER-CONN", 
+					mlog("SERVER-CONN", 
 						"Could not reallocate memory for request.");
 					errCode = SERVICE_UNAVAILABLE;
 					requestStatus = RESPONDING;
@@ -126,7 +126,7 @@ void *thread_handle_connection_routine(void* inputptr){
 				int endLinePtrOffset = endLinePtr - buf;
 				buf = realloc(buf, realUsedSize);
 				if (buf == NULL){
-					log("SERVER-CONN", 
+					mlog("SERVER-CONN", 
 						"Could not reallocate memory for request.");
 					errCode = SERVICE_UNAVAILABLE;
 					requestStatus = RESPONDING;
@@ -147,14 +147,14 @@ void *thread_handle_connection_routine(void* inputptr){
 				endLinePtr = buf + endLinePtrOffset;
 				toRead = realUsedSize - byteCount;
 				if (buf == NULL){
-					log("SERVER-CONN", 
+					mlog("SERVER-CONN", 
 						"Could not reallocate memory for request.");
 					errCode = SERVICE_UNAVAILABLE;
 				}
 			}
 			bytesJustRead = read(fd, nextreadlocation, toRead);
 			if (bytesJustRead == 0) {
-				log("SERVER-CONN", 
+				mlog("SERVER-CONN", 
 				"Connection closed unexpectedly.");
 			}
 			byteCount += bytesJustRead;
@@ -222,7 +222,7 @@ void *thread_handle_connection_routine(void* inputptr){
 							int resultCreate100Continue = pthread_create(&tid100continue, NULL,
 								&thread_send_100_continue, (void*) &fd);
 							if (resultCreate100Continue != 0){
-								log("SERVER-CONN", strerror(resultCreate100Continue));
+								mlog("SERVER-CONN", strerror(resultCreate100Continue));
 							}
 						}
 						//Abbiamo letto i trailer, abbiamo finito
@@ -286,7 +286,7 @@ void *thread_handle_connection_routine(void* inputptr){
 						if (requiresBody){
 							body = malloc(sizeof(char)*contentLength);
 							if (body == NULL) {
-								log("SERVER-CONN", 
+								mlog("SERVER-CONN", 
 									"Could not reallocate memory for request.");
 								errCode = SERVICE_UNAVAILABLE;				
 							} else {
@@ -297,7 +297,7 @@ void *thread_handle_connection_routine(void* inputptr){
 								if (input == NULL || bstargroot == NULL) {
 									free(input);
 									free(bstargroot);
-									log("SERVER-CONN", 
+									mlog("SERVER-CONN", 
 											"Could not reallocate memory for request.");
 									errCode = SERVICE_UNAVAILABLE;
 								}
@@ -312,7 +312,7 @@ void *thread_handle_connection_routine(void* inputptr){
 						}
 					}
 					if (errCode != UNDEFINED){
-						log("SERVER-CONN", strcat("Sending error response with code ", get_response_code_string(errCode));
+						mlog("SERVER-CONN", strcat("Sending error response with code ", get_response_code_string(errCode));
 						write_response(fd, errCode, "Connection: close\r\n\r\n", NULL, true);
 					}
 					else {
@@ -330,7 +330,7 @@ void *thread_handle_connection_routine(void* inputptr){
 						void *(request_handler)(void*) = ((routeinfo*)requesteredroute->value)->request_handler;
 						int createRetValue = pthread_create(&tid, NULL, request_handler, (void*) input);
 						if (createRetValue != 0){
-							log("SERVER-CONN", strerror(createRetValue));
+							mlog("SERVER-CONN", strerror(createRetValue));
 							close(fd);
 						} else pthread_detach(tid);
 					}
