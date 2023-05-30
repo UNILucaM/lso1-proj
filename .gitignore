@@ -4,3 +4,8 @@
 
 *.swp
 *.bak
+./server/bin
+./server/CMakeCache.txt
+./server/CMakeFiles/
+./server/cmake_install.cmake
+./server/.sconsign.dblite

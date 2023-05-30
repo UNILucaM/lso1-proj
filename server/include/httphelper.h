@@ -2,8 +2,11 @@
 #include "bstnode.h"
 
 #define HTTPVER "HTTP/1.1"
-#define HTTPEOL "\r\n\"
+#define HTTPEOL "\r\n"
 #define HTTPMAXHEADERNAMELENGTH 40
+
+#ifndef HTTPHELPER_H
+#define HTTPHELPER_H
 typedef enum {
 	UNSUPPORTED = -1,
 	GET,
@@ -11,14 +14,12 @@ typedef enum {
 	PUT
 }supportedmethod;
 
-const struct{
+typedef struct{
 	supportedmethod value;
 	char* str;
-} supportmethodconversiontable[] =
-	{GET, "GET"},
-	{POST, "POST"},
-	{PUT, "PUT"}
-};
+}supportedmethodstrpair;
+
+extern const supportedmethodstrpair supportmethodconversiontable[];
 
 typedef enum{
 	CONTINUE,
@@ -41,17 +42,18 @@ typedef enum{
 }requeststatus;
 
 typedef struct routeinfo{
-	void (*request_handler)(void*);
+	void *(*request_handler)(void*);
 	bool requiresBody;
 }routeinfo;
 
-const char *responsecodestrings[] = 
-	{"100 Continue", "200 OK", "400 Bad Request", "404 Not Found", "501 Not Implemented", "503 Service Unavailable", ""};
+extern const char *responsecodestrings[]; 
+#endif
 
 char *get_header_field_value(char*, char*, bool*);
 int convert_string_to_supportedmethod_enum(char*);
 char *find_newline(char*, int);
-char *get_response_code_string(responsecode);
+bool isValidArgStr(char*);
+const char *get_response_code_string(responsecode);
 char *form_response(responsecode, char*, char*, int*);
 int write_response(int, responsecode, char*, char*, bool);
 bstnode *mkroute(char*, void*(*)(void*), bool);

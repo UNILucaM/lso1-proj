@@ -1,14 +1,16 @@
 #include "httphelper.h"
+#include "bstnode.h"
 #include <stdbool.h>
 
 typedef struct handleconnectioninput{
 	int fd;
-	route* routeroot;
+	bstnode *routeroot;
 } handleconnectioninput;
 
 typedef struct handlerequestinput{
 	int fd;
 	char *body;
+	supportedmethod method;
 	int contentLength;
 	bstnode *arguments;
 } handlerequestinput;

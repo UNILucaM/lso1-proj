@@ -1,4 +1,4 @@
-#include <sys/socket.h>
+#include <netinet/ip.h>
 
 
 typedef struct serverinfo{
@@ -7,4 +7,4 @@ typedef struct serverinfo{
 } serverinfo;
 
 
-serverinfo* create_server(int, int);
+serverinfo *create_server(int, int);

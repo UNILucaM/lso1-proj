@@ -10,13 +10,15 @@ dei loro header e argomenti.*/
 a riferimenti ad altri nodi conserva
 la funzione da eseguire relativa al path.
 e se richiede parametri aggiuntivi (vedi bstnodeinfo)*/
+#ifndef BSTNODE_H
+#define BSTNODE_H
 typedef struct bstnode{
 	char *key;
 	void *value;
 	struct bstnode *left;
 	struct bstnode *right;
 }bstnode;
-
+#endif
 bstnode* init_bst(bstnode*, ...);
 bstnode* create_bstnode(char*, void*);
 bstnode* add_bstnode(bstnode*, bstnode*);

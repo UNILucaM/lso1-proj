@@ -1,3 +1,3 @@
 #include <stdio.h>
 
-void log(char*, char*);
+void mlog(char*, char*);
