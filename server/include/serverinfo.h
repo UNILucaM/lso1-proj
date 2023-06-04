@@ -1,4 +1,4 @@
-#include <netinet/ip.h>
+#include <netinet/in.h>
 
 
 typedef struct serverinfo{

@@ -97,30 +97,31 @@ RETURNS integer
 LANGUAGE plpgsql
 AS $$
 DECLARE
-	minimumNumberOfPossibleUsages integer;
-	isFirstIteration boolean := TRUE;
-	ingredientCursor cursor(cpid integer) for
-		SELECT I.ingredientName, (floor((I.quantity::numeric/ IIP.quantityNeededInRecipe)))) AS numberOfPossibleUsages
-		FROM Ingredient as I JOIN IngredientInProduct AS IIP ON I.ingredientName = IIP.ingredientName
-		WHERE IIP.productPid = cpid;
-	ingredientCursorRow record;
+        minimumNumberOfPossibleUsages integer;
+        isFirstIteration boolean := TRUE;
+        ingredientCursor cursor(cpid integer) for
+        	SELECT I.ingredientName, (floor((I.quantity::numeric/ IIP.quantityNeededInRecipe))) AS numberOfPossibleUsages
+        	FROM Ingredient as I JOIN IngredientInProduct AS IIP ON I.ingredientName = IIP.ingredientName
+        	WHERE IIP.productPid = cpid	
+        	FOR NO KEY UPDATE;
+        ingredientCursorRow record;
 BEGIN
-	open ingredientCursor(productPid);
-	LOOP
-		fetch ingredientCursor into ingredientCursorRow;
-		exit when not found;
-		IF (ingredientCursorRow.numberOfPossibleUsages <= 0) THEN 
-			RETURN 0; 
-		END IF;
-		IF (isFirstIteration = TRUE) THEN
-			isFirstIteration = FALSE;
-			minimumNumberOfPossibleUsages = ingredientCursorRow.numberOfPossibleUsages;
-		ELSIF (minimumNumberOfPossibleUsages > ingredientCursorRow.numberOfPossibleUsages) THEN
-			minimumNumberOfPossibleUsages = ingredientCursorRow.numberOfPossibleUsages;
-		END IF;
-	END LOOP;
-	close ingredientCursor;
-	RETURN minimumNumberOfPossibleUsages;
+        open ingredientCursor(productPid);
+        LOOP
+        	fetch ingredientCursor into ingredientCursorRow;
+        	exit when not found;
+        	IF (ingredientCursorRow.numberOfPossibleUsages <= 0) THEN 
+        		RETURN 0; 
+        	END IF;
+        	IF (isFirstIteration = TRUE) THEN
+        		isFirstIteration = FALSE;
+        		minimumNumberOfPossibleUsages = ingredientCursorRow.numberOfPossibleUsages;
+        	ELSIF (minimumNumberOfPossibleUsages > ingredientCursorRow.numberOfPossibleUsages) THEN
+        		minimumNumberOfPossibleUsages = ingredientCursorRow.numberOfPossibleUsages;
+        	END IF;
+        END LOOP;
+        close ingredientCursor;
+        RETURN minimumNumberOfPossibleUsages;
 END
 $$
 

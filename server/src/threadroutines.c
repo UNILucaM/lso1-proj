@@ -10,33 +10,119 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <jansson.h>
 
 #define METHODBUFSIZE 32
 #define PATHBUFSIZE 4096
+#define ACTIVETHREADSCHECKDELAY_MS 500
 
-
-void *thread_products_routine(void* arg){
-	return NULL; //TODO
+void *thread_products_routine(void*){
+	if (arg == NULL){
+		mlog("SERVER-PRODUCTS",
+			"Passed NULL to thread_products_routine. Program will be terminated.");
+		fatal("Unexpected NULL argument while starting thread.");
+	}
+	handlerequestinput *hri = (handlerequestinput*)arg; 
+	sharedthreadvariables *stv = hri->stv;
+        if (stv == NULL){
+        	mlog("SERVER-PRODUCTS",
+        		"Stv is NULL. Program will be terminated.");
+        	fatal("Unexpected NULL sharedThreadVariables while staring thread.");
+        }
+	//TODO
+	end_self_thread(hri, hri->stv, hri->tid);
 }
 
 void *thread_login_routine(void* arg){
-	return NULL; //TODO
+	if (arg == NULL){                                         	
+        	mlog("SERVER-LOGIN",
+        		"Passed NULL to thread_login_routine. Program will be terminated.");
+		fatal("Unexpected NULL argument while starting thread.");
+        }
+        handlerequestinput *hri = (handlerequestinput*)arg; 
+	sharedthreadvariables *stv = hri->stv;
+        if (stv == NULL){
+        	mlog("SERVER-LOGIN",
+        		"Stv is NULL. Program will be terminated.");
+        	fatal("Unexpected NULL sharedThreadVariables while staring thread.");
+        }
+	//TODO
+	end_self_thread(hri, hri->stv, hri->tid);
 }
 
 void *thread_products_purchase_routine(void* arg){
-	return NULL; //TODO
+	if (arg == NULL){                                         		
+        	mlog("SERVER-PRODUCTS_PURCHASE",
+        		"Passed NULL to thread_products_purchase_routine. Program will be terminated.");
+		fatal("Unexpected NULL argument while starting thread.");
+        }
+        handlerequestinput *hri = (handlerequestinput*)arg; 
+	sharedthreadvariables *stv = hri->stv;
+        if (stv == NULL){
+        	mlog("SERVER-PRODUCTS_PURCHASE",
+        		"Stv is NULL. Program will be terminated.");
+		fatal("Unexpected NULL sharedThreadVariables while staring thread.");
+        }
+        //TODO
+        end_self_thread(hri, hri->stv, hri->tid);
 }
 
 void *thread_register_routine(void* arg){
-	return NULL; //TODO
+	if (arg == NULL){
+		mlog("SERVER-REGISTER", 
+			"Passed NULL to thread_register_routine. Program will be terminated.");
+		fatal("Unexpected NULL argument while starting thread.");
+	}
+	handlerequestinput *hri = (handlerequestinput*)arg;
+	sharedthreadvariables *stv = hri->stv;                                    	
+        if (stv == NULL){
+		mlog("SERVER-REGISTER",
+        		"Stv is NULL. Program will be terminated.");
+        	fatal("Unexpected NULL sharedThreadVariables while staring thread.");
+        }
+	//TODO
+	serverconfig *sc = hri->serverconfig;
+	dbconn conn = get_conn_db(sc->dbName, sc->dbUsername, sc->dbPassword);
+	bool hasFailed = false;
+	if (conn != NULL){
+		int queryResult = perform_query(conn, query);
+		if (queryResult == -1) hasFailed = true;
+	} else hasFailed = true;
+	responsecode statusCode;
+        if (!hasFailed) statusCode = OK;
+        else statusCode = SERVICE_UNAVAILABLE; 
+	pthread_mutex_lock(stv->fdMutex);	
+	write_response(stv->fd, statusCode, NULL, NULL, false);
+	pthread_mutex_unlock(stv->fdMutex);
+	end_self_thread(hri, hri->stv, hri->tid);
 }
 
 void *thread_send_100_continue(void* arg){
-	write_response(*((int*)arg), CONTINUE, NULL, NULL, false);
+	if (arg == NULL){                                         		
+        	mlog("SERVER-100CONTINUE",
+        		"Passed NULL to thread_send_100_continue. Program will be terminated."
+        	fatal("Unexpected NULL argument while starting thread.");
+        }
+        handle100continueinput *h100ci = (handle100continue*)arg;
+	sharedthreadvariables *stv = h100ci->stv;
+	if (stv == NULL){
+		mlog("SERVER-100CONTINUE",
+			"Stv is NULL. Program will be terminated.");
+		fatal("Unexpected NULL sharedThreadVariables while staring thread.");
+	}
+	pthread_mutex_lock(stv->fdMutex);
+	write_response(stv->fd, CONTINUE, NULL, NULL, false);
+	pthread_mutex_unlock(stv->fdMutex);
+	end_self_thread_100continue(h100ci, h100ci->stv, h100ci->tid);                       
 }
 
 void *thread_handle_connection_routine(void* inputptr){
-	int fd = ((handleconnectioninput*)inputptr)->fd;
+	handleconnectioninput *hci = ((handleconnectioninput*)inputptr);
+	sharedthreadvariables *stv = malloc(sizeof(sharedhthreadvariables));
+	stv->fd = hci->fd;
+	pthread_mutex_create(&(stv->activeThreadsMutex), NULL);
+	pthread_mutex_create(&(stv->fdMutex), NULL);
+ 
 	int byteCount = 0;
     	int bytesJustRead = 0;
 	int toRead = BUFSIZE;
@@ -66,25 +152,23 @@ void *thread_handle_connection_routine(void* inputptr){
 	char *body = NULL;
 	char *response = NULL;
 	
-	bool isFirstLine = true;
 	bool requiresBody = false;
-	bool isBufFull = false;
 	bool isRequestLineParsed = false;
 	bool isContentLengthParsed = false;
 	bool isHostParsed = false;
-	bool hasBody = false;
-	bool isTryingToAcquireBody = false;
 	bool isDataChunkEncoded = false;
 	bool shouldSend100Continue = false;
 	bool shouldCloseConnection = false;
 	bool *isHeaderFuncOutOfMemory = malloc(sizeof(bool));
 	
 	supportedmethod method;
-	bstnode *routeroot = ((handleconnectioninput*)inputptr)->routeroot;
+	bstnode *routeroot = hci->routeroot;
 	bstnode *requestedroute = NULL;
 	bstnode *bstargroot = NULL;
+	bstnode *headerRoot = NULL;
 	responsecode errCode = UNDEFINED;
 	requeststatus requestStatus = PARSING_REQUEST_LINE;
+	serverconfig *serverconfig = hci->sefverconfig;
 	pthread_t tid100continue = 0;
 	
 	free(inputptr);
@@ -116,7 +200,6 @@ void *thread_handle_connection_routine(void* inputptr){
 			}
 			
 			if (buf != NULL){
-				//BUGBUGBUG
 				memmove(buf, buf+messageEndOffset+1, bytesReadFromNextMessage);
 				memset(buf+bytesReadFromNextMessage, 0, realUsedSize - bytesReadFromNextMessage);
 				totalChunkedDataSize = 0;
@@ -129,10 +212,8 @@ void *thread_handle_connection_routine(void* inputptr){
 				isRequestLineParsed = false;
 				isContentLengthParsed = false;
 				isHostParsed = false;
-				hasBody = false;
 				isDataChunkEncoded = false;
 				shouldSend100Continue = false;
-				shouldCloseConnection = false;
 			}
 			
 		}
@@ -168,10 +249,12 @@ void *thread_handle_connection_routine(void* inputptr){
 					errCode = SERVICE_UNAVAILABLE;
 				}
 			}
-			bytesJustRead = read(fd, nextReadLocation, toRead);
+			bytesJustRead = read(stv->fd, nextReadLocation, toRead);
 			if (bytesJustRead == 0) {
 				mlog("SERVER-CONN", 
 				"Connection closed unexpectedly.");
+				shouldCloseConnection = true;
+				continue;
 			}
 			byteCount += bytesJustRead;
 			nextReadLocation += bytesJustRead;
@@ -182,15 +265,17 @@ void *thread_handle_connection_routine(void* inputptr){
 			}
 		}
 		while(1){
+			if (requestStatus == DONE) break;
 			if (requestStatus == OBTAINING_BODY) break;
 			if (endLinePtr != NULL) startLinePtr = endLinePtr+1;
 			if (errCode != UNDEFINED) requestStatus = RESPONDING;
-			else {
+			if (requestStatus != RESPONDING) {
 				endLinePtr = find_newline(startLinePtr, 
-					(nextReadLocation) - startLinePtr);
-				//DEBUGDEBUGDEBUG TODO
-				printf("%.*s\n", (int) strcspn(startLinePtr, "\r"), startLinePtr);
-				if (endLinePtr == NULL) break;  	
+					(nextReadLocation) - startLinePtr) - 1;
+				if (endLinePtr == NULL){
+					mlog("SERVER-CONN", "Didn't find endline. Rereading...");
+					break;
+				};  	
 			}
 			switch(requestStatus){
 				case PARSING_REQUEST_LINE:
@@ -213,13 +298,21 @@ void *thread_handle_connection_routine(void* inputptr){
 					else pathptr = pathbuf;
 					strcpy(tmppathbuf, pathptr);
 					token = strtok(tmppathbuf, "?");
-					if (strlen(token) != strlen(pathptr)) 
-						arguments = strtok(NULL, "?");
-						if (!isValidArgStr(arguments)) {errCode = BAD_REQUEST; break;}
+					if (token != NULL){
+						if (strlen(token) != strlen(pathptr)){
+							arguments = strtok(NULL, "?");                                          	
+							if (!isValidArgStr(arguments)) 
+								{errCode = BAD_REQUEST; break;}
+						}
+							
+					}
 					requestedroute = search(routeroot, token);
 					if (requestedroute == NULL) {errCode = NOT_FOUND; break;}
 					else{
 						routeinfo* rinfo = (routeinfo*)(requestedroute->value);
+						int8_t methodFlag = get_flag_value_for_method(method);						
+                                                if (!(rinfo->acceptedMethodsMask & methodFlag))
+							{errCode = METHOD_NOT_ALLOWED; break;}
 						if (rinfo->requiresBody) requiresBody = true;	
 					}
 					break;
@@ -228,17 +321,22 @@ void *thread_handle_connection_routine(void* inputptr){
 					if (*startLinePtr == '\r' && *(startLinePtr+1) == '\n'){
 						//L'header (o il trailer) è terminato
 						//Se non abbiamo trovato l'header host, la richiesta non è valida secondo HTTP 1.1
-						if (!isHostParsed) {errCode = BAD_REQUEST; break;}
+						if ((!isHostParsed && !isDataChunkEncoded) ||
+							(!isHostParsed && requestStatus == PARSING_TRAILERS)) 
+							{errCode = BAD_REQUEST; break;}
 						if (!requiresBody) {
 							requestStatus = RESPONDING; 
-							messageEndOffset = (long) (startLinePtr+1); 
+							messageEndOffset = (size_t) (startLinePtr+1); 
 							break;
 						}
 						if (shouldSend100Continue){
-							int resultCreate100Continue = pthread_create(&tid100continue, NULL,
-								&thread_send_100_continue, (void*) &fd);
-							if (resultCreate100Continue != 0){
-								mlog("SERVER-CONN", strerror(resultCreate100Continue));
+							pthread_t *tid100continue = malloc(sizeof(pthread_t));
+							handle100continueinput *h100ci = malloc(sizeof(handle100continueinput));
+							h100ci->stv = stv;
+							h100ci->tid = tid100continue; 
+							if (!start_thread(&thread_send_100_continue, h100ci, stv, tid)){
+								shouldCloseConnection = true;
+								continue;
 							}
 						}
 						//Abbiamo letto i trailer, abbiamo finito
@@ -258,7 +356,7 @@ void *thread_handle_connection_routine(void* inputptr){
 						requestStatus = OBTAINING_BODY;
 						break;
 					}						
-					if (sscanf(startLinePtr, "%s: %s\r", headernamebuf, valuebuf) != 2)
+					if (sscanf(startLinePtr, "%[^:]: %s\r", headernamebuf, valuebuf) != 2)
 						{errCode = BAD_REQUEST; break;}
 					if (strcmp(headernamebuf, "Host") == 0){
 						isHostParsed = true;
@@ -271,6 +369,20 @@ void *thread_handle_connection_routine(void* inputptr){
 						if (strcmp(valuebuf, "100-continue") == 0) shouldSend100Continue = true;
 					} else if (strcmp(headernamebuf, "Connection") == 0){
 						if (strcmp(valuebuf, "close") == 0) shouldCloseConnection = true;
+					}
+					char *headername = malloc
+							(sizeof(char)*(strlen(headernamebuf)+1));
+					char *headervalue = malloc
+							(sizeof(char)*(strlen(valuebuf)+1));
+					strcpy(headername, headernamebuf);
+					strcpy(headervalue, valuebuf);	
+					headerRoot = add_bstnode(headerRoot, 
+						create_bstnode(headername, headervalue));
+					if (headerRoot == NULL ||
+						 headername == NULL || headervalue == NULL) {
+						mlog("SERVER-CONN", "Could not allocate memory for header.");
+						errCode = SERVICE_UNAVAILABLE;
+						break;
 					}
 					break;
 				case OBTAINING_BODY:
@@ -301,25 +413,25 @@ void *thread_handle_connection_routine(void* inputptr){
 					handlerequestinput *newThreadInput;
 					if (errCode == UNDEFINED){
 						if (requiresBody){
-							body = malloc(sizeof(char)*contentLength);
+							body = malloc(sizeof(char)*(contentLength+1));
 							if (body == NULL) {
 								mlog("SERVER-CONN", 
 									"Could not reallocate memory for request.");
 								errCode = SERVICE_UNAVAILABLE;				
 							} else {
 								strncpy(body, buf+bodyStartOffset, contentLength);
-								handlerequestinput *input = NULL;
+								body[contentLength] = '\0';
 								newThreadInput = malloc(sizeof(handlerequestinput));
 								bstargroot = malloc(sizeof(bstnode));
-								if (input == NULL || bstargroot == NULL) {
-									free(input);
+								if (newThreadInput == NULL || bstargroot == NULL) {
+									free(newThreadInput);
 									free(bstargroot);
 									mlog("SERVER-CONN", 
-											"Could not reallocate memory for request.");
+											"Could not allocate memory for request.");
 									errCode = SERVICE_UNAVAILABLE;
 								}
 								else {
-									if (arguments == NULL) input->arguments = NULL;
+									if (arguments == NULL) newThreadInput->arguments = NULL;
 									else{
 										bstargroot = mkargbst(arguments);
 										if (bstargroot == NULL) errCode = SERVICE_UNAVAILABLE;
@@ -329,28 +441,37 @@ void *thread_handle_connection_routine(void* inputptr){
 						}
 					}
 					if (errCode != UNDEFINED){
-					mlog("SERVER-CONN", strcat("Sending error response with code ", get_response_code_string(errCode)));
-						write_response(fd, errCode, "Connection: close\r\n\r\n", NULL, true);
+						char *errLogBegin = "Sending error response with code ";
+						const char *errCodeString = get_response_code_string(errCode);
+						char *tmpErrMessageBuf = malloc(strlen(errLogBegin)+
+							strlen(errCodeString)+1);
+						strcpy(tmpErrMessageBuf, errLogBegin);
+						strcat(tmpErrMessageBuf, errCodeString);
+						mlog("SERVER-CONN", tmpErrMessageBuf);
+						shouldCloseConnection = true;
+						pthread_mutex_lock(stv->fdMutex);
+						write_response(stv->fd, errCode, "Connection: close\r\n\r\n", NULL, true);
+						pthread_mutex_unlock(stv->fdMutex);
+						free(tmpErrMessageBuf);
 					}
 					else {
-						//DEBUGDEBUGDEBUG TODO
-						exit(0);
-						newThreadInput->fd = fd;
+						newThreadInput->stv = stv;
 						newThreadInput->body = body;
 						newThreadInput->contentLength = contentLength;
 						newThreadInput->arguments = bstargroot;
 						newThreadInput->method = method;
-						pthread_t tid;
+						newThreadInput->headers = headerRoot;
+						newThreadInput->serverconfig = serverconfig;	
+						pthread_t *tid = malloc(sizeof(pthread_t));
+						newThreadInput->tid = tid;
 						if (tid100continue != 0)
 						{
 							pthread_join(tid100continue, NULL);
 						}
 						void *(*request_handler)(void*) = ((routeinfo*)requestedroute->value)->request_handler;
-						int createRetValue = pthread_create(&tid, NULL, request_handler, (void*) newThreadInput);
-						if (createRetValue != 0){
-							mlog("SERVER-CONN", strerror(createRetValue));
-							close(fd);
-						} else pthread_detach(tid);
+						if (!start_thread(request_handler, (void*) newThreadInput, tid, stv)){
+							shouldCloseConnection = true;
+						}
 					}
 					requestStatus = DONE;
 					break;
@@ -358,7 +479,7 @@ void *thread_handle_connection_routine(void* inputptr){
 		}
 		
 	}
-	
+	shutdown(stv->fd, SHUT_RD);
 	free(buf);
 	free(methodbuf);
 	free(pathbuf);
@@ -366,5 +487,102 @@ void *thread_handle_connection_routine(void* inputptr){
 	free(isHeaderFuncOutOfMemory);
 	free(valuebuf);
 	free(headernamebuf);
+	while(1){
+		pthread_mutex_lock(stv->activeThreadsMutex);
+		if (stv->activeThreads == NULL) {
+			pthread_mutex_unlock(stv->activeThreadsMutex); 
+			break;
+		}
+		pthread_mutex_unlock(stv->activeThreadsMutex);
+		sleep(ACTIVETHREADSCHECKDELAY_MS);
+	}
+	close(stv->fd);
+	free_sharedthreadvariables(stv);
+	free(hci);
+}
 
+bool start_thread(void *(*request_handler)(void*), void *input,
+		sharedthreadvariables *stv, pthread_t *tid){
+	if (tid == NULL || stv == NULL || input == NULL || request_handler == NULL){
+		mlog("SERVER-CONN", "Could not start new thread (bad arguments).");
+		return false;
+	}
+	bool wasAdded = add_activethread(stv, tid);	
+	if (!wasAdded){
+		mlog("SERVER-CONN", "Could not add thread to list of active threads. Aborting creation.");
+		return false;	 
+	}
+	int createRetValue;                                                		
+	createRetValue = pthread_create(tid, NULL, request_handler, input);
+	if (createRetValue != 0){
+		mlog("SERVER-CONN", strerror(createRetValue));
+		remove_activethread(stv, tid);
+		return false;	
+	}
+	pthread_detach(tid);
+	return true;
+}
+
+void end_self_thread(handlerequestinput *hri, 
+		sharedthreadvariables *stv, pthread_t *tidPtr){
+	free_handlerequestinput(hri);
+	remove_activeThread(stv, tidPtr);
+	pthread_exit(NULL);
+}
+
+void end_self_thread_100continue(handle100continueinput *h100ci,
+		sharedthreadvariables *stv, pthread_t *tidPtr){
+	free_handle100continueinput(h100ci);
+	remove_activeThread(stv, tidPtr);
+	pthread_exit(NULL);	
+}
+
+void free_handlerequestinput(handlerequestinput *hri){
+	free(hri->body);
+	free_bstargs(hri->arguments);
+	free_bstheaders(hri->headers);
+	free(hri);	
+}
+
+void free_handle100continueinput(handle100continueinput *h100ci){
+	free(h100ci);
+}
+
+void free_bstargs(bstnode *bstargsroot){
+	if (bstargsroot != NULL){
+		free_bstargs(bstargsroot->left);
+		free_bstargs(bstargsroot->right);
+		if (bstargsroot->key != NULL)
+			free(bstargsroot->key);
+		if (bstargsroot->value != NULL)
+			free(bstargsroot->value);
+		free(bstargsroot);
+	}
+}
+
+void free_bstheaders(bstnode *bstheaders){
+	free_bstargs(bstheaders); //Stessa implementazione...
+}
+
+void free_sharedthreadvariables(sharedthreadvariables *sharedthreadvariables){
+	pthread_mutex_destroy(&(sharedthreadvariables->activeThreadsMutex));
+	pthread_mutex_destroy(&(sharedhtradvariables->fdMutex));
+	free(sharedthreadvariables);
+}
+
+bool add_activethread(sharedthreadvariables *stv, pthread_t *tidPtr){
+	linkedlistnode *lln = create_node((void*) tidPtr);
+	if (lln == NULL) return false;
+	pthread_mutex_lock(stv->activeThreadsMutex);
+	lln->next = stv->activeThreads;
+	stv->activeThreads = lln;
+	pthread_mutex_unlock(stv->activeThreadsMutex);
+	return true;
+}
+
+void remove_activethread(sharedthreadvariables *stv, pthread_t *tidPtr){
+	pthread_mutex_lock(stv->activeThreadsMutex);  	
+        stv->activeThreads = remove_linkedlistnode
+        	(stv->activeThreads, tid);
+        pthread_mutex_unlock(stv->activeThreadsMutex);
 }

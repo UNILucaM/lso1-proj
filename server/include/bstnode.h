@@ -19,7 +19,8 @@ typedef struct bstnode{
 	struct bstnode *right;
 }bstnode;
 #endif
-bstnode* init_bst(bstnode*, ...);
-bstnode* create_bstnode(char*, void*);
-bstnode* add_bstnode(bstnode*, bstnode*);
-bstnode* search(bstnode*, char*);
+bstnode *init_bst(bstnode*, ...);
+bstnode *create_bstnode(char*, void*);
+bstnode *add_bstnode(bstnode*, bstnode*);
+bstnode *search(bstnode*, char*);
+void print_bst_keys_inorder(bstnode*);

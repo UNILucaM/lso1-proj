@@ -26,12 +26,13 @@ serverinfo *create_server(int port, int listenqueuesize){
 		fatal("Cannot set SO_REUSEPORT option.");
 	#endif
 	serverinfo->server_address.sin_family = AF_INET;
-	serverinfo->server_address.sin_family = htons(port);
+	serverinfo->server_address.sin_port = htons(port);
 	serverinfo->server_address.sin_addr.s_addr = INADDR_ANY;
 	int bindresult = bind(serverinfo->server_fd, 
-		(struct sockaddr*) &(serverinfo->server_address), 
-		sizeof(serverinfo->server_address));
+		(struct sockaddr*) (&(serverinfo->server_address)), 
+		sizeof((serverinfo->server_address)));
 	if (bindresult < 0) fatal("Could not bind.");
 	listen(serverinfo->server_fd, listenqueuesize);
 	mlog("SERVER", "Created server successfully.");
+	return serverinfo;
 }

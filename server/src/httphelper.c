@@ -7,17 +7,19 @@
 #include "bstnode.h"
 #include "strutil.h"
 
-const supportedmethodstrpair supportedmethodconversiontable[] = {
-	{GET, "GET"},
-	{POST, "POST"},
-	{PUT, "PUT"}
+const supportedmethodconversionvalues supportedmethodconversiontable[] = {
+	{GET, "GET", GET_FLAG},
+	{POST, "POST", POST_FLAG},
+	{PUT, "PUT", PUT_FLAG}
+	{HEAD, "HEAD", HEAD_FLAG}
 };
 
-const char* responsecodestrings[] =
+const char *responsecodestrings[] =
 	{"100 Continue", 
 	"200 OK", 
 	"400 Bad Request", 
-	"404 Not Found", 
+	"404 Not Found",
+	"405 Method Not Allowed" 
 	"501 Not Implemented", 
 	"503 Service Unavailable", 
 	""};
@@ -44,7 +46,7 @@ char *get_header_field_value(char *input, char *headerFieldName, bool *isOutOfMe
 	return returntoken;	
 }
 
-int convert_string_to_supportedmethod_enum(char* str){
+int convert_string_to_supportedmethod_enum(char *str){
 	int i;
 	int n = sizeof(supportedmethodconversiontable) / 
 		sizeof(supportedmethodconversiontable[0]);
@@ -56,10 +58,14 @@ int convert_string_to_supportedmethod_enum(char* str){
 	return UNSUPPORTED;
 }
 
+const int8_t get_flag_value_for_method(supportedmethod method){
+	return supportmethodconversiontable[method].flagValue; 
+}
+
 char *find_newline(char *ptr, int n){
 	int i = 0;
 	for (i; i+1 < n; i++){
-		if (ptr[i] == '\r' && ptr[i+1] == '\n') return ptr+2;
+		if (ptr[i] == '\r' && ptr[i+1] == '\n') return ptr+i+2;
 	}
 	return NULL;
 }
@@ -68,13 +74,15 @@ const char *get_response_code_string(responsecode code){
 	return responsecodestrings[code];
 }
 
-bstnode *mkroute(char* path, void *(*request_handler)(void*), bool requiresBody){
-    routeinfo *routeinfo = malloc(sizeof(routeinfo));
+bstnode *mkroute(char* path, void *(*request_handler)(void*),
+	bool requiresBody, int8_t acceptedMethodsMask){
+	routeinfo *routeinfo = malloc(sizeof(routeinfo));
 	if (routeinfo == NULL) return NULL;
-    routeinfo->request_handler = request_handler;
-    routeinfo->requiresBody = requiresBody;
-    bstnode *route = create_bstnode(path, (void*) routeinfo);
-    return route;
+    	routeinfo->request_handler = request_handler;
+	routeinfo->requiresBody = requiresBody;
+	routeinfo->acceptedMethodsMask = acceptedMethodsMask;
+	bstnode *route = create_bstnode(path, (void*) routeinfo);
+	return route;
 }
 
 //Algoritmo:
@@ -89,6 +97,7 @@ bstnode *mkroute(char* path, void *(*request_handler)(void*), bool requiresBody)
 //2. Se non esiste, la stringa è valida se non esiste nemmeno
 //una prossima occorrenza di '&' (altrimenti è invalida).
 bool isValidArgStr(char *args){
+	if (args == NULL) return false;
 	char *ptr;
 	char *ampPtr;
 	while(1){
@@ -112,11 +121,20 @@ bool isValidArgStr(char *args){
 
 bstnode *mkargbst(char *args){
 	char *ptr = args;
-	char *token;
+	char *tokenName;
+	char *tokenValue;
+	char *argName;
+	char *argValue;
 	bstnode *root = NULL;
 	bstnode *bstnodePtr;
-	while((token = strtok(ptr, "=&")) != NULL){
-		bstnodePtr = create_bstnode(token, strtok(NULL, "=&"));
+	while((tokenName = strtok(ptr, "=&")) != NULL){
+		tokenValue = strtok(NULL, "=&");
+		argName = malloc(sizeof(char)*(1+strlen(tokenName)));
+		argValue = malloc(sizeof(char)*(1+strlen(tokenValue)));
+		if (argName == NULL || argValue == NULL) return NULL;
+		strcpy(argName, tokenName);
+		strcpy(argValue, tokenValue);
+		bstnodePtr = create_bstnode(argName, argValue);
 		if (bstnodePtr == NULL) return NULL;
 		root = add_bstnode(root, bstnodePtr);
 		if (root == NULL) return NULL;
@@ -143,17 +161,16 @@ int write_response(int fd, responsecode responsecode,
 	return tlen;
 }
 
-//L'output non è terminato con '\0'
 char *form_response(responsecode responsecode, 
 	char *header, char *body, int *ilen){
 	char *response;
 	char *ptr;
 	const char *responsecodestring = get_response_code_string(responsecode);
 	char c;
-	int len = strlen(HTTPVER) + 1 + strlen(responsecodestring) 
+	int len = strlen(HTTPVER) + 2 + strlen(responsecodestring) 
 		+ strlen(HTTPEOL) 
-		+ (header == NULL) ? 0 : strlen(header)
-		+ (body == NULL) ? 0 : strlen(body);
+		+ ((header == NULL) ? 0 : strlen(header))
+		+ ((body == NULL) ? 0 : strlen(body));
 	response = malloc(sizeof(char)*len);
 	if (response == NULL) return NULL;
 	strcpy(response, HTTPVER);
@@ -161,13 +178,9 @@ char *form_response(responsecode responsecode,
 	ptr = chainstrcat(ptr, " ");
 	ptr = chainstrcat(ptr, (char*) responsecodestring);
 	ptr = chainstrcat(ptr, HTTPEOL);
-	ptr = chainstrcat(ptr, header);
-	//Evita di copiare '\0'
-	while((c = *body)){
-		*ptr++ = c;
-		body++;
-	}
-	if (ilen != NULL) *ilen = len;
+	if (header != NULL) ptr = chainstrcat(ptr, header);
+	if (body != NULL) ptr = chainstrcat(ptr, body);
+	if (ilen != NULL) *ilen = len - 1;
 	return response;
 }
 

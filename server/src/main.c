@@ -22,26 +22,45 @@
 #include "config.h"
 
 #define QUEUE_LENGTH 5
-#define PORT 5200
+#define BUFSIZE 4096
+#define PORT 8080
 
 serverinfo *server = NULL;
 bstnode *routeroot = NULL;
-char *requestbuf[BUFSIZE];
+serverconfig *serverconfig = NULL;
 
 bstnode *init_routes(){
 	return init_bst(
-		mkroute("/register", &thread_register_routine, true),
-		mkroute("/login", &thread_login_routine, true),
-		mkroute("/products", &thread_products_routine, false),
-		mkroute("/products/purchase", &thread_products_purchase_routine, true),
+		mkroute("/register", &thread_register_routine, true, PUT_FLAG),
+		mkroute("/login", &thread_login_routine, true, POST_FLAG),
+		mkroute("/products", &thread_products_routine, false, GET_FLAG),
+		mkroute("/products/purchase", &thread_products_purchase_routine, true, POST_FLAG),
 		NULL);
 }
 
-int main(){
+int main(int argc, char* argv){
 	server = create_server(PORT, QUEUE_LENGTH);
+	if (server == NULL) fatal("Unexpected: server is null");
 	routeroot = init_routes();
+	if (routeroot == NULL) fatal("Unexpected: routeroot is null");
+	char *fileName = NULL;
 	pthread_t tid;
 	handleconnectioninput *hci;
+	while ((c = getopt (argc, argv, "f::")) != -1){
+		switch (c){
+			//filename opt
+			case 'f':
+				fileName = strdup(optarg);
+				break;
+		}	
+	}	
+	serverconfig = load_serverconfig_from_file
+		(((fileName == NULL) ? SERVERCONFIGFILENAME : fileName));
+	if (serverconfig == NULL) fatal("Unexpected: cannot load config");
+	if (serverconfig->dbName == NULL ||
+		serverconfig->dbUsername == NULL ||
+		serverconfig->dbPassword == NULL)
+		fatal("Could not read one or more necessary config parameters.");
 	int threadCreateRetVal;
 	while(1){
 		mlog("SERVER", "Waiting for new connection...");
@@ -49,13 +68,19 @@ int main(){
 		if (fd < 0) fatal("Cannot open new connection.");
 		mlog("SERVER", "New connection established!");
 		hci = malloc(sizeof(handleconnectioninput));
+		if (hci == NULL){
+			close(fd);
+			mlog("SERVER", "Cannot allocate handleconnectioninput.");
+			continue;
+		}
 		hci->fd = fd;
 		hci->routeroot = routeroot;
+		hci->serverconfig = serverconfig;
 		threadCreateRetVal = pthread_create(&tid, NULL, &thread_handle_connection_routine, (void*) hci);
 		if (threadCreateRetVal != 0) {
 			mlog("SERVER", strerror(threadCreateRetVal));
 			close(fd);
-			free(hci);
+			free_handleconnectioninput(hci);	
 		} else pthread_detach(tid);
 	}
 }
