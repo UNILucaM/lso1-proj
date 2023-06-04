@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(LSODrinkServer VERSION 0.1 LANGUAGES C)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake-modules)
 set(HEADERDIR ${PROJECT_SOURCE_DIR}/include)
 set(SOURCEDIR ${PROJECT_SOURCE_DIR}/src)     
 set(FILES bstnode 
