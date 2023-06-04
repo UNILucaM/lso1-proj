@@ -1,5 +1,6 @@
 #include "httphelper.h"
 #include "bstnode.h"
+#include "linkedlist.h"
 #include "config.h"
 
 #include <stdbool.h>
