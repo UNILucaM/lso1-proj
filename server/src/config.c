@@ -36,6 +36,7 @@ serverconfig *load_serverconfig_from_file(char *filePath){
 					hasFailed = true;
 					break;
 				}
+				printf("LOL %s", parametervaluebuf);
 				strcpy(serverconfig->dbName, parametervaluebuf);
                 	} else if (strcmp(parameternamebuf, "dbusername") == 0){
 				serverconfig->dbUsername =
@@ -70,6 +71,7 @@ serverconfig *load_serverconfig_from_file(char *filePath){
 	free(parametervaluebuf);
 	free(lineptrbuf);
 	if (hasFailed){
+		printf("OOF\n");
 		free_serverconfig(serverconfig);	
 		return NULL;
 	}

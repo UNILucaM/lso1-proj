@@ -6,6 +6,7 @@
 #include "dbconn.h"
 #include "errorhandling.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
@@ -15,6 +16,7 @@
 #include <jansson.h>
 #include <sys/socket.h>
 
+#define ERRBUFSIZE 4096
 #define BUFSIZE 4096
 #define METHODBUFSIZE 32
 #define PATHBUFSIZE 4096
@@ -86,13 +88,13 @@ void *thread_register_routine(void* arg){
         	fatal("Unexpected NULL sharedThreadVariables while staring thread.");
         }
 	responsecode statusCode = UNDEFINED;
-	char **errBuf = malloc(sizeof(char*));
-	if (errBuf != NULL) *errBuf = NULL;
-	else {
+	char *errBuf = malloc(sizeof(char)*ERRBUFSIZE);
+	if (errBuf == NULL) {
 		mlog("SERVER-REGISTER",
 			"Could not allocate memory for errBuf. Quitting thread.");
 		end_self_thread(hri, hri->stv, hri->tid);
 	}
+	errBuf[0] = '\0';
 	//parsing body jansson
 	const char *requestUsername = NULL;
 	const char *requestPassword = NULL;
@@ -120,9 +122,9 @@ void *thread_register_routine(void* arg){
 		const char *params[] = {requestUsername, requestPassword};
 		serverconfig *sc = hri->serverConfig;                                                                                      
 	        PGconn *conn = get_db_conn(sc->dbName, sc->dbUsername, sc->dbPassword, errBuf);                                            
-	        if (conn == NULL || ((*errBuf) != NULL)){                                                                                 
-	        	if ((*errBuf) != NULL) {                                                                                          
-	        		mlog("SERVER-REGISTER", *errBuf);                                                                         
+	        if (conn == NULL || errBuf[0] != '\0'){                                                                                 
+	        	if (errBuf[0] != '\0') {                                                                                          
+	        		mlog("SERVER-REGISTER", errBuf);                                                                         
 	        		statusCode = SERVICE_UNAVAILABLE;                                                                                         
 	        	}                                                                                                                 
 	        	else {                                                                                                            
@@ -233,10 +235,8 @@ void *thread_handle_connection_routine(void* inputptr){
 	responsecode errCode = UNDEFINED;
 	requeststatus requestStatus = PARSING_REQUEST_LINE;
 	serverconfig *serverConfig = hci->serverConfig;
-	pthread_t tid100continue = 0;
-	
-	free(inputptr);
-	
+	pthread_t tid100continue = 0;	
+	printf("%s\n", serverConfig->dbUsername);	
 	if (buf == NULL || pathbuf == NULL || methodbuf == NULL || tmppathbuf == NULL 
 	|| headernamebuf == NULL || valuebuf == NULL || isHeaderFuncOutOfMemory == NULL){
 		mlog("SERVER-CONN", 
@@ -525,7 +525,8 @@ void *thread_handle_connection_routine(void* inputptr){
 						newThreadInput->arguments = bstargroot;
 						newThreadInput->method = method;
 						newThreadInput->headers = headerRoot;
-						newThreadInput->serverConfig = serverConfig;	
+						newThreadInput->serverConfig = serverConfig;
+						printf("DO IT AGAIN %s\n", serverConfig->dbUsername);	
 						pthread_t *tid = malloc(sizeof(pthread_t));
 						newThreadInput->tid = tid;
 						if (tid100continue != 0)
