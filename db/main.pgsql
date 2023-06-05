@@ -87,7 +87,7 @@ BEGIN
 	INSERT INTO Sale (username, productPid, quantity)
 		VALUES (customerUsername, pid, desiredQuantity)
 	ON CONFLICT (username, productPid) DO UPDATE
-		SET Sale.quantity = sale.quantity + excluded.quantity;
+		SET quantity = sale.quantity + excluded.quantity;
 END
 $$;
 

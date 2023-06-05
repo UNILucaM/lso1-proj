@@ -26,7 +26,6 @@ INSERT INTO Sale VALUES ('AccountTest', 6, 2, DEFAULT);
 INSERT INTO Sale VALUES ('AccountTest2', 8, 5, DEFAULT);
 INSERT INTO Sale VALUES ('AccountTest2', 2, 9, DEFAULT);
 INSERT INTO Sale VALUES ('AccountTest2', 1, 2, DEFAULT);
-INSERT INTO Sale VALUES ('AccountTest2', 2, 2, DEFAULT);
 INSERT INTO Sale VALUES ('AccountTest2', 3, 4, DEFAULT);
 
 CALL upsert_sale('AccountTest2', 8, 3);
