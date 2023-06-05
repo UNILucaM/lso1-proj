@@ -3,6 +3,8 @@
 #include "mlog.h"
 #include "httphelper.h"
 #include "bstnode.h"
+#include "dbconn.h"
+#include "errorhandling.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -11,12 +13,15 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <jansson.h>
+#include <sys/socket.h>
 
+#define BUFSIZE 4096
 #define METHODBUFSIZE 32
 #define PATHBUFSIZE 4096
+#define VALUEBUFSIZE 512
 #define ACTIVETHREADSCHECKDELAY_MS 500
 
-void *thread_products_routine(void*){
+void *thread_products_routine(void* arg){
 	if (arg == NULL){
 		mlog("SERVER-PRODUCTS",
 			"Passed NULL to thread_products_routine. Program will be terminated.");
@@ -80,48 +85,107 @@ void *thread_register_routine(void* arg){
         		"Stv is NULL. Program will be terminated.");
         	fatal("Unexpected NULL sharedThreadVariables while staring thread.");
         }
-	//TODO
-	serverconfig *sc = hri->serverconfig;
-	dbconn conn = get_conn_db(sc->dbName, sc->dbUsername, sc->dbPassword);
-	bool hasFailed = false;
-	if (conn != NULL){
-		int queryResult = perform_query(conn, query);
-		if (queryResult == -1) hasFailed = true;
-	} else hasFailed = true;
-	responsecode statusCode;
-        if (!hasFailed) statusCode = OK;
-        else statusCode = SERVICE_UNAVAILABLE; 
-	pthread_mutex_lock(stv->fdMutex);	
+	responsecode statusCode = UNDEFINED;
+	char **errBuf = malloc(sizeof(char*));
+	if (errBuf != NULL) *errBuf = NULL;
+	else {
+		mlog("SERVER-REGISTER",
+			"Could not allocate memory for errBuf. Quitting thread.");
+		end_self_thread(hri, hri->stv, hri->tid);
+	}
+	//parsing body jansson
+	const char *requestUsername = NULL;
+	const char *requestPassword = NULL;
+	if (hri->body != NULL){
+		json_error_t jsonErr;
+		json_t *root = json_loads(hri->body, 0, &jsonErr);
+		if (root != NULL){
+			if (json_is_object(root)){
+				json_t *jsonUsername = json_object_get(root, "username");
+				json_t *jsonPassword = json_object_get(root, "password");
+				if (jsonUsername != NULL && jsonPassword != NULL &&
+					json_is_string(jsonUsername) &&
+					json_is_string(jsonPassword))
+				{
+					requestUsername = json_string_value(jsonUsername);
+					requestPassword = json_string_value(jsonPassword);
+				}
+			}
+			
+		}
+		json_decref(root); 
+	}
+	//database                                                                                                          
+       	if (requestUsername != NULL && requestPassword != NULL){
+		const char *params[] = {requestUsername, requestPassword};
+		serverconfig *sc = hri->serverConfig;                                                                                      
+	        PGconn *conn = get_db_conn(sc->dbName, sc->dbUsername, sc->dbPassword, errBuf);                                            
+	        if (conn == NULL || ((*errBuf) != NULL)){                                                                                 
+	        	if ((*errBuf) != NULL) {                                                                                          
+	        		mlog("SERVER-REGISTER", *errBuf);                                                                         
+	        		statusCode = SERVICE_UNAVAILABLE;                                                                                         
+	        	}                                                                                                                 
+	        	else {                                                                                                            
+	        		mlog("SERVER-REGISTER",                                                                                   
+	        			"Unexpected *errBuf NULL, but conn is NULL. Quitting thread, but this should not happen.");
+				free(errBuf);        
+	        		end_self_thread(hri, hri->stv, hri->tid);                                                                 
+	        	}                                                                                                                 
+	        }	                                                                                                                 
+	        if (statusCode  == UNDEFINED){                                                                                                          
+	        	PGresult *queryResult =                                                                                           
+	        		PQexecParams(conn,                                                                                        
+	        			REGISTERSTATEMENT,                                                                                
+	        			2,                                                                                                
+	        			NULL,                                                                                             
+	        			params,
+					NULL, NULL, 0);
+			ExecStatusType execStatus = PQresultStatus(queryResult);                                                                                                                                                                                                            
+	        	if (execStatus != PGRES_COMMAND_OK){
+				if (execStatus == PGRES_NONFATAL_ERROR ||
+					execStatus == PGRES_FATAL_ERROR)
+				{statusCode = BAD_REQUEST;}
+				else statusCode = INTERNAL_SERVER_ERROR; 
+				mlog("SERVER-REGISTER",
+					PQerrorMessage(conn));	
+			} else statusCode = OK;
+			PQclear(queryResult);
+	        }
+		PQfinish(conn);                                                                                                                      
+	} else statusCode = BAD_REQUEST;
+	free(errBuf);	
+	
+	pthread_mutex_lock(&stv->fdMutex);	
 	write_response(stv->fd, statusCode, NULL, NULL, false);
-	pthread_mutex_unlock(stv->fdMutex);
+	pthread_mutex_unlock(&stv->fdMutex);
 	end_self_thread(hri, hri->stv, hri->tid);
 }
 
 void *thread_send_100_continue(void* arg){
 	if (arg == NULL){                                         		
         	mlog("SERVER-100CONTINUE",
-        		"Passed NULL to thread_send_100_continue. Program will be terminated."
+        		"Passed NULL to thread_send_100_continue. Program will be terminated.");
         	fatal("Unexpected NULL argument while starting thread.");
         }
-        handle100continueinput *h100ci = (handle100continue*)arg;
+        handle100continueinput *h100ci = (handle100continueinput*)arg;
 	sharedthreadvariables *stv = h100ci->stv;
 	if (stv == NULL){
 		mlog("SERVER-100CONTINUE",
 			"Stv is NULL. Program will be terminated.");
 		fatal("Unexpected NULL sharedThreadVariables while staring thread.");
 	}
-	pthread_mutex_lock(stv->fdMutex);
+	pthread_mutex_lock(&stv->fdMutex);
 	write_response(stv->fd, CONTINUE, NULL, NULL, false);
-	pthread_mutex_unlock(stv->fdMutex);
+	pthread_mutex_unlock(&stv->fdMutex);
 	end_self_thread_100continue(h100ci, h100ci->stv, h100ci->tid);                       
 }
 
 void *thread_handle_connection_routine(void* inputptr){
 	handleconnectioninput *hci = ((handleconnectioninput*)inputptr);
-	sharedthreadvariables *stv = malloc(sizeof(sharedhthreadvariables));
+	sharedthreadvariables *stv = malloc(sizeof(sharedthreadvariables));
 	stv->fd = hci->fd;
-	pthread_mutex_create(&(stv->activeThreadsMutex), NULL);
-	pthread_mutex_create(&(stv->fdMutex), NULL);
+	pthread_mutex_init(&(stv->activeThreadsMutex), NULL);
+	pthread_mutex_init(&(stv->fdMutex), NULL);
  
 	int byteCount = 0;
     	int bytesJustRead = 0;
@@ -142,7 +206,7 @@ void *thread_handle_connection_routine(void* inputptr){
 	char *pathbuf = malloc(sizeof(char)*PATHBUFSIZE);
 	char *tmppathbuf = malloc(sizeof(char)*PATHBUFSIZE);
 	char *headernamebuf = malloc(sizeof(char)*HTTPMAXHEADERNAMELENGTH);
-	char *valuebuf = malloc(sizeof(char)*BUFSIZE);
+	char *valuebuf = malloc(sizeof(char)*VALUEBUFSIZE);
 	char *nextStartForMemmove;
 	char *startLinePtr = buf;
 	char *endLinePtr = NULL;
@@ -168,7 +232,7 @@ void *thread_handle_connection_routine(void* inputptr){
 	bstnode *headerRoot = NULL;
 	responsecode errCode = UNDEFINED;
 	requeststatus requestStatus = PARSING_REQUEST_LINE;
-	serverconfig *serverconfig = hci->sefverconfig;
+	serverconfig *serverConfig = hci->serverConfig;
 	pthread_t tid100continue = 0;
 	
 	free(inputptr);
@@ -334,7 +398,7 @@ void *thread_handle_connection_routine(void* inputptr){
 							handle100continueinput *h100ci = malloc(sizeof(handle100continueinput));
 							h100ci->stv = stv;
 							h100ci->tid = tid100continue; 
-							if (!start_thread(&thread_send_100_continue, h100ci, stv, tid)){
+							if (!start_thread(&thread_send_100_continue, h100ci, stv, tid100continue)){
 								shouldCloseConnection = true;
 								continue;
 							}
@@ -394,8 +458,7 @@ void *thread_handle_connection_routine(void* inputptr){
 						else nextStartForMemmove += chunkedDataSize;
 						sscanf(startLinePtr, "%x", &chunkedDataSize);
 						//Fine del trasferimento, ora si cerca di leggere i trailer
-						if (chunkedDataSize == 0) {
-							hasBody = true; 
+						if (chunkedDataSize == 0) { 
 							contentLength = totalChunkedDataSize;
 							requestStatus = PARSING_TRAILERS; 
 							break;
@@ -449,9 +512,9 @@ void *thread_handle_connection_routine(void* inputptr){
 						strcat(tmpErrMessageBuf, errCodeString);
 						mlog("SERVER-CONN", tmpErrMessageBuf);
 						shouldCloseConnection = true;
-						pthread_mutex_lock(stv->fdMutex);
+						pthread_mutex_lock(&stv->fdMutex);
 						write_response(stv->fd, errCode, "Connection: close\r\n\r\n", NULL, true);
-						pthread_mutex_unlock(stv->fdMutex);
+						pthread_mutex_unlock(&stv->fdMutex);
 						free(tmpErrMessageBuf);
 					}
 					else {
@@ -461,7 +524,7 @@ void *thread_handle_connection_routine(void* inputptr){
 						newThreadInput->arguments = bstargroot;
 						newThreadInput->method = method;
 						newThreadInput->headers = headerRoot;
-						newThreadInput->serverconfig = serverconfig;	
+						newThreadInput->serverConfig = serverConfig;	
 						pthread_t *tid = malloc(sizeof(pthread_t));
 						newThreadInput->tid = tid;
 						if (tid100continue != 0)
@@ -469,7 +532,7 @@ void *thread_handle_connection_routine(void* inputptr){
 							pthread_join(tid100continue, NULL);
 						}
 						void *(*request_handler)(void*) = ((routeinfo*)requestedroute->value)->request_handler;
-						if (!start_thread(request_handler, (void*) newThreadInput, tid, stv)){
+						if (!start_thread(request_handler, (void*) newThreadInput, stv, tid)){
 							shouldCloseConnection = true;
 						}
 					}
@@ -488,12 +551,12 @@ void *thread_handle_connection_routine(void* inputptr){
 	free(valuebuf);
 	free(headernamebuf);
 	while(1){
-		pthread_mutex_lock(stv->activeThreadsMutex);
+		pthread_mutex_lock(&stv->activeThreadsMutex);
 		if (stv->activeThreads == NULL) {
-			pthread_mutex_unlock(stv->activeThreadsMutex); 
+			pthread_mutex_unlock(&stv->activeThreadsMutex); 
 			break;
 		}
-		pthread_mutex_unlock(stv->activeThreadsMutex);
+		pthread_mutex_unlock(&stv->activeThreadsMutex);
 		sleep(ACTIVETHREADSCHECKDELAY_MS);
 	}
 	close(stv->fd);
@@ -519,21 +582,21 @@ bool start_thread(void *(*request_handler)(void*), void *input,
 		remove_activethread(stv, tid);
 		return false;	
 	}
-	pthread_detach(tid);
+	pthread_detach(*tid);
 	return true;
 }
 
 void end_self_thread(handlerequestinput *hri, 
 		sharedthreadvariables *stv, pthread_t *tidPtr){
 	free_handlerequestinput(hri);
-	remove_activeThread(stv, tidPtr);
+	remove_activethread(stv, tidPtr);
 	pthread_exit(NULL);
 }
 
 void end_self_thread_100continue(handle100continueinput *h100ci,
 		sharedthreadvariables *stv, pthread_t *tidPtr){
 	free_handle100continueinput(h100ci);
-	remove_activeThread(stv, tidPtr);
+	remove_activethread(stv, tidPtr);
 	pthread_exit(NULL);	
 }
 
@@ -566,23 +629,23 @@ void free_bstheaders(bstnode *bstheaders){
 
 void free_sharedthreadvariables(sharedthreadvariables *sharedthreadvariables){
 	pthread_mutex_destroy(&(sharedthreadvariables->activeThreadsMutex));
-	pthread_mutex_destroy(&(sharedhtradvariables->fdMutex));
+	pthread_mutex_destroy(&(sharedthreadvariables->fdMutex));
 	free(sharedthreadvariables);
 }
 
 bool add_activethread(sharedthreadvariables *stv, pthread_t *tidPtr){
-	linkedlistnode *lln = create_node((void*) tidPtr);
+	linkedlistnode *lln = create_linkedlistnode((void*) tidPtr);
 	if (lln == NULL) return false;
-	pthread_mutex_lock(stv->activeThreadsMutex);
+	pthread_mutex_lock(&stv->activeThreadsMutex);
 	lln->next = stv->activeThreads;
 	stv->activeThreads = lln;
-	pthread_mutex_unlock(stv->activeThreadsMutex);
+	pthread_mutex_unlock(&stv->activeThreadsMutex);
 	return true;
 }
 
 void remove_activethread(sharedthreadvariables *stv, pthread_t *tidPtr){
-	pthread_mutex_lock(stv->activeThreadsMutex);  	
+	pthread_mutex_lock(&stv->activeThreadsMutex);  	
         stv->activeThreads = remove_linkedlistnode
-        	(stv->activeThreads, tid);
-        pthread_mutex_unlock(stv->activeThreadsMutex);
+        	(stv->activeThreads, tidPtr);
+        pthread_mutex_unlock(&stv->activeThreadsMutex);
 }

@@ -34,13 +34,13 @@ typedef enum {
 per ogni enum supportedmethod, la stringa corrispondente
 e la flag corrispondente (o anche l'enum corrispondente dalla
 stringa corrispondente.)*/
-static typedef struct{
+typedef struct{
 	supportedmethod value;
 	char *str;
 	int8_t flagValue;
 }supportedmethodconversionvalues;
 
-extern static const supportedmethodconversionvalues supportmethodconversiontable[];
+extern const supportedmethodconversionvalues supportmethodconversiontable[];
 
 typedef enum{
 	CONTINUE,
@@ -49,6 +49,7 @@ typedef enum{
 	NOT_FOUND,
 	METHOD_NOT_ALLOWED,
 	NOT_IMPLEMENTED,
+	INTERNAL_SERVER_ERROR,
 	SERVICE_UNAVAILABLE,
 	UNDEFINED
 }responsecode;
@@ -86,5 +87,6 @@ int8_t get_flag_value_for_method(supportedmethod);
 char *form_response(responsecode, char*, char*, int*);
 int write_response(int, responsecode, char*, char*, bool);
 bstnode *mkroute(char*, void*(*)(void*), bool, int8_t);
+void free_bstroute(bstnode*);
 //NOTA: L'implementazione fornita distrugge la stringa originale.
 bstnode *mkargbst(char*);

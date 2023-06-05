@@ -153,6 +153,54 @@ src/bstnode.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/bstnode.c.s
 .PHONY : src/bstnode.c.s
 
+src/config.o: src/config.c.o
+.PHONY : src/config.o
+
+# target to build an object file
+src/config.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/config.c.o
+.PHONY : src/config.c.o
+
+src/config.i: src/config.c.i
+.PHONY : src/config.i
+
+# target to preprocess a source file
+src/config.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/config.c.i
+.PHONY : src/config.c.i
+
+src/config.s: src/config.c.s
+.PHONY : src/config.s
+
+# target to generate assembly for a file
+src/config.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/config.c.s
+.PHONY : src/config.c.s
+
+src/dbconn.o: src/dbconn.c.o
+.PHONY : src/dbconn.o
+
+# target to build an object file
+src/dbconn.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/dbconn.c.o
+.PHONY : src/dbconn.c.o
+
+src/dbconn.i: src/dbconn.c.i
+.PHONY : src/dbconn.i
+
+# target to preprocess a source file
+src/dbconn.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/dbconn.c.i
+.PHONY : src/dbconn.c.i
+
+src/dbconn.s: src/dbconn.c.s
+.PHONY : src/dbconn.s
+
+# target to generate assembly for a file
+src/dbconn.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/dbconn.c.s
+.PHONY : src/dbconn.c.s
+
 src/errorhandling.o: src/errorhandling.c.o
 .PHONY : src/errorhandling.o
 
@@ -200,6 +248,30 @@ src/httphelper.s: src/httphelper.c.s
 src/httphelper.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/httphelper.c.s
 .PHONY : src/httphelper.c.s
+
+src/linkedlist.o: src/linkedlist.c.o
+.PHONY : src/linkedlist.o
+
+# target to build an object file
+src/linkedlist.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/linkedlist.c.o
+.PHONY : src/linkedlist.c.o
+
+src/linkedlist.i: src/linkedlist.c.i
+.PHONY : src/linkedlist.i
+
+# target to preprocess a source file
+src/linkedlist.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/linkedlist.c.i
+.PHONY : src/linkedlist.c.i
+
+src/linkedlist.s: src/linkedlist.c.s
+.PHONY : src/linkedlist.s
+
+# target to generate assembly for a file
+src/linkedlist.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/linkedlist.c.s
+.PHONY : src/linkedlist.c.s
 
 src/main.o: src/main.c.o
 .PHONY : src/main.o
@@ -333,12 +405,21 @@ help:
 	@echo "... src/bstnode.o"
 	@echo "... src/bstnode.i"
 	@echo "... src/bstnode.s"
+	@echo "... src/config.o"
+	@echo "... src/config.i"
+	@echo "... src/config.s"
+	@echo "... src/dbconn.o"
+	@echo "... src/dbconn.i"
+	@echo "... src/dbconn.s"
 	@echo "... src/errorhandling.o"
 	@echo "... src/errorhandling.i"
 	@echo "... src/errorhandling.s"
 	@echo "... src/httphelper.o"
 	@echo "... src/httphelper.i"
 	@echo "... src/httphelper.s"
+	@echo "... src/linkedlist.o"
+	@echo "... src/linkedlist.i"
+	@echo "... src/linkedlist.s"
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"

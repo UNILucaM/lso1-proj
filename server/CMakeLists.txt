@@ -6,6 +6,7 @@ set(HEADERDIR ${PROJECT_SOURCE_DIR}/include)
 set(SOURCEDIR ${PROJECT_SOURCE_DIR}/src)     
 set(FILES bstnode 
 	config
+	dbconn
 	errorhandling 
 	httphelper
 	linkedlist

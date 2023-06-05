@@ -20,13 +20,12 @@ Il nome utente non inizia con un carattere numerico come suo primo carattere.
 */
 CREATE TABLE Account(
 	username text,
-	passwordHash text NOT NULL,
-	passwordSalt text NOT NULL,
+	password text NOT NULL,
 	CONSTRAINT ACCOUNT_PK PRIMARY KEY(username),
 	CONSTRAINT ACCOUNT_NAME_LENGTH CHECK(length(username) <= 16 AND
 		length(username) > 4),
 	CONSTRAINT ACCOUNT_NAME_FORMAT CHECK(username ~ '^(?![0-9])[a-zA-Z0-9]+$'),
-	CONSTRAINT ACCOUNT_PASSWORDHASH_LENGTH CHECK(length(passwordHash) = 64)
+	CONSTRAINT ACCOUNT_PASSWORD_FORMAT CHECK(password ~ '(?=.{9,})(?=.*?[^\w\s])(?=.*?[0-9])(?=.*?[A-Z]).*?[a-z].*')
 );
 
 /*
@@ -90,7 +89,7 @@ BEGIN
 	ON CONFLICT (username, productPid) DO UPDATE
 		SET Sale.quantity = sale.quantity + excluded.quantity;
 END
-$$
+$$;
 
 CREATE OR REPLACE FUNCTION get_how_many_products_can_be_made(productPid integer)
 RETURNS integer
@@ -123,7 +122,7 @@ BEGIN
         close ingredientCursor;
         RETURN minimumNumberOfPossibleUsages;
 END
-$$
+$$;
 
 CREATE OR REPLACE PROCEDURE update_ingredients_quantity(productPid integer, cquantity integer)
 LANGUAGE plpgsql
@@ -145,7 +144,7 @@ BEGIN
 	END LOOP;
 	close ingredientCursor;
 END
-$$
+$$;
 
 /*
 Funzione trigger che riflette gli aggiornamenti/inserzioni sulla tabella Sale sulle quantità dei record delle tabelle Product relative.
@@ -170,9 +169,9 @@ BEGIN
 			RETURN NEW;
 		END IF;
 	END IF;
-	CALL quantityInStock = get_how_many_products_can_be_made(NEW.productPid);
+	quantityInStock = get_how_many_products_can_be_made(NEW.productPid);
 	IF (quantityInStock >= desiredQuantity) THEN
-		update_ingredients_quantity(NEW.productPid, desiredQuantity);
+		CALL update_ingredients_quantity(NEW.productPid, desiredQuantity);
 		IF TG_OP = 'UPDATE' THEN
 			NEW.lastTimeBought = CAST(now() AS timestamp);
 		END IF;
@@ -181,7 +180,7 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END
-$$
+$$;
 
 CREATE OR REPLACE TRIGGER UPDATE_LAST_TIME_BOUGHT
 AFTER UPDATE OR INSERT ON Sale
@@ -269,7 +268,7 @@ BEGIN
 		RETURN NEXT;
 	END LOOP;
 END
-$$
+$$;
 
 CREATE TYPE ingredientWithQuantityType AS (ingredientName text, quantity float);
 
@@ -302,4 +301,4 @@ BEGIN
 		USING ingredientWithQuantity.ingredientName, tpid, ingredientWithQuantity.quantity, defaultNewIngredientQuantityInStock;
 	END LOOP;
 END
-$$
+$$;

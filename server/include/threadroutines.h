@@ -4,11 +4,13 @@
 #include "config.h"
 
 #include <stdbool.h>
+#include <pthread.h>
 
+#define REGISTERSTATEMENT "INSERT IN Account VALUES($1, $2);"
 typedef struct handleconnectioninput{
 	int fd;
 	bstnode *routeroot;
-	serverconfig *serverconfig;
+	serverconfig *serverConfig;
 } handleconnectioninput;
 
 typedef struct sharedthreadvariables{
@@ -26,7 +28,7 @@ typedef struct handlerequestinput{
 	bstnode *headers;
 	pthread_t *tid;
 	sharedthreadvariables *stv;
-	serverconfig *serverconfig;
+	serverconfig *serverConfig;
 } handlerequestinput;
 
 typedef struct handle100continueinput{
@@ -42,6 +44,7 @@ void *thread_products_purchase_routine(void*);
 void *thread_send_100_continue(void*);
 
 void free_handlerequestinput(handlerequestinput*);
+void free_handle100continueinput(handle100continueinput*);
 void free_bstargs(bstnode*);
 void free_bstheaders(bstnode*);
 void free_sharedthreadvariables(sharedthreadvariables*);
@@ -49,6 +52,6 @@ void free_sharedthreadvariables(sharedthreadvariables*);
 bool add_activethread(sharedthreadvariables*, pthread_t*);
 void remove_activethread(sharedthreadvariables*, pthread_t*);
 
-void start_thread(void *(*)(void*), void*, sharedthreadvariables*, pthread_t*);
+bool start_thread(void *(*)(void*), void*, sharedthreadvariables*, pthread_t*);
 void end_self_thread(handlerequestinput*, sharedthreadvariables*, pthread_t*);
-void end_self_thread_100continue(handle100continueinput*, sharedthreadvariable*, pthread_t);
+void end_self_thread_100continue(handle100continueinput*, sharedthreadvariables*, pthread_t*);

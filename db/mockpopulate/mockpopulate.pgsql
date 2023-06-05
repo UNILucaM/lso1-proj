@@ -1,6 +1,6 @@
-INSERT INTO Account VALUES ('AccountTest', 'L65GfDq9Pq9LyclQxSunryDUGkMV7QwDI16Cy1E0qf5-E7Ms5tL7nfTAuV_4LuNZ', 's');
-INSERT INTO Account VALUES ('AccountTest2', 'L65GfDq9Pq9LyclQxSunryDUGkMV7QwDI16Cy1E0qf5-E7Ms5tL7nfTAuV_4LuNZ', 's');
-INSERT INTO Account VALUES ('AccountTest3', 'L65GfDq9Pq9LyclQxSunryDUGkMV7QwDI16Cy1E0qf5-E7Ms5tL7nfTAuV_4LuNZ', 's');
+INSERT INTO Account VALUES ('AccountTest', 'a2cdE!789');
+INSERT INTO Account VALUES ('AccountTest2', 'L65GfDq9P-');
+INSERT INTO Account VALUES ('AccountTest3', 'L65Gfaz!aw');
 
 
 INSERT INTO Ingredient VALUES('Latte', 100000);

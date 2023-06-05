@@ -2,6 +2,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <stdbool.h>
+#include <limits.h>
+
+#include "config.h"
 
 serverconfig *load_serverconfig_from_file(char *filePath){
 	if (filePath == NULL) return NULL;
@@ -15,9 +19,9 @@ serverconfig *load_serverconfig_from_file(char *filePath){
 	char *parameternamebuf = malloc(sizeof(char)*LINEPTRBUFSIZE/2);
 	char *parametervaluebuf = malloc(sizeof(char)*LINEPTRBUFSIZE/2);
 	char *lineptrbuf = malloc(sizeof(char)*LINEPTRBUFSIZE);
-	FILE configFile = fopen(filePath, "r");
-	if (configFile != NULL || lineptrbuf != NULL){
-		int n = LINEPTRBUFSIZE;
+	FILE *configFile = fopen(filePath, "r");
+	if (configFile != NULL && lineptrbuf != NULL){
+		size_t  n = LINEPTRBUFSIZE;
 		while(getline(&lineptrbuf, &n, configFile) != -1){
 			if(sscanf(lineptrbuf, "%[^:]: %s\r", 
                 		parameternamebuf, parametervaluebuf) != 2){
@@ -35,7 +39,7 @@ serverconfig *load_serverconfig_from_file(char *filePath){
 				strcpy(serverconfig->dbName, parametervaluebuf);
                 	} else if (strcmp(parameternamebuf, "dbusername") == 0){
 				serverconfig->dbUsername =
-					malloc((strlen(paramatervaluebuf)+1)*sizeof(char));
+					malloc((strlen(parametervaluebuf)+1)*sizeof(char));
 				if (serverconfig->dbUsername == NULL){
 					hasFailed = true;
 					break;
@@ -51,7 +55,7 @@ serverconfig *load_serverconfig_from_file(char *filePath){
 				serverconfig->port = port;
 			}		
 		}
-	} else {hasFailed = true};	
+	} else hasFailed = true;	
 	if (configFile != NULL) fclose(configFile);
 	free(parameternamebuf);
 	free(parametervaluebuf);
@@ -63,9 +67,9 @@ serverconfig *load_serverconfig_from_file(char *filePath){
 	return serverconfig;		
 }
 
-void free_serverconfig(serverconfig *serverconfig){
-	free(serverconfig->dbName);    	
-        free(serverconfig->dbUsername);
-        free(serverconfig->password);
-        free(serverconfig);
+void free_serverconfig(serverconfig *serverConfig){
+	free(serverConfig->dbName);    	
+        free(serverConfig->dbUsername);
+        free(serverConfig->dbPassword);
+        free(serverConfig);
 }

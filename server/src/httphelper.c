@@ -10,7 +10,7 @@
 const supportedmethodconversionvalues supportedmethodconversiontable[] = {
 	{GET, "GET", GET_FLAG},
 	{POST, "POST", POST_FLAG},
-	{PUT, "PUT", PUT_FLAG}
+	{PUT, "PUT", PUT_FLAG},
 	{HEAD, "HEAD", HEAD_FLAG}
 };
 
@@ -19,7 +19,8 @@ const char *responsecodestrings[] =
 	"200 OK", 
 	"400 Bad Request", 
 	"404 Not Found",
-	"405 Method Not Allowed" 
+	"405 Method Not Allowed",
+	"500 Internal Server Error", 
 	"501 Not Implemented", 
 	"503 Service Unavailable", 
 	""};
@@ -59,7 +60,7 @@ int convert_string_to_supportedmethod_enum(char *str){
 }
 
 const int8_t get_flag_value_for_method(supportedmethod method){
-	return supportmethodconversiontable[method].flagValue; 
+	return supportedmethodconversiontable[method].flagValue; 
 }
 
 char *find_newline(char *ptr, int n){
@@ -83,6 +84,16 @@ bstnode *mkroute(char* path, void *(*request_handler)(void*),
 	routeinfo->acceptedMethodsMask = acceptedMethodsMask;
 	bstnode *route = create_bstnode(path, (void*) routeinfo);
 	return route;
+}
+
+void free_bstroute(bstnode *root){
+	if (root == NULL) return;
+	free_bstroute(root->left);
+	free_bstroute(root->right);
+	void *val = root->value;
+	routeinfo *routeinfo = val;
+	if (routeinfo != NULL) free(routeinfo);
+	free(root);
 }
 
 //Algoritmo:

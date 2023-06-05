@@ -6,7 +6,7 @@
 #include "mlog.h"
 
 serverinfo *create_server(int port, int listenqueuesize){
-	serverinfo* serverinfo = malloc(sizeof(serverinfo));
+	serverinfo *serverinfo = malloc(sizeof(serverinfo));
 	if (serverinfo == NULL) fatal("Cannot allocate serverinfo.");
 	serverinfo->server_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (serverinfo->server_fd < 0) fatal("Cannot create socket.");

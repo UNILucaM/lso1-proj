@@ -21,13 +21,14 @@
 #include "httphelper.h"
 #include "config.h"
 
+#define SERVERCONFIGFILENAME "config.cfg"
 #define QUEUE_LENGTH 5
 #define BUFSIZE 4096
 #define PORT 8080
 
 serverinfo *server = NULL;
 bstnode *routeroot = NULL;
-serverconfig *serverconfig = NULL;
+serverconfig *serverConfig = NULL;
 
 bstnode *init_routes(){
 	return init_bst(
@@ -38,7 +39,7 @@ bstnode *init_routes(){
 		NULL);
 }
 
-int main(int argc, char* argv){
+int main(int argc, char **argv){
 	server = create_server(PORT, QUEUE_LENGTH);
 	if (server == NULL) fatal("Unexpected: server is null");
 	routeroot = init_routes();
@@ -46,7 +47,8 @@ int main(int argc, char* argv){
 	char *fileName = NULL;
 	pthread_t tid;
 	handleconnectioninput *hci;
-	while ((c = getopt (argc, argv, "f::")) != -1){
+	int c;
+	while ((c = getopt(argc, argv, "f::")) != -1){
 		switch (c){
 			//filename opt
 			case 'f':
@@ -54,12 +56,16 @@ int main(int argc, char* argv){
 				break;
 		}	
 	}	
-	serverconfig = load_serverconfig_from_file
+	serverConfig = load_serverconfig_from_file
 		(((fileName == NULL) ? SERVERCONFIGFILENAME : fileName));
-	if (serverconfig == NULL) fatal("Unexpected: cannot load config");
-	if (serverconfig->dbName == NULL ||
-		serverconfig->dbUsername == NULL ||
-		serverconfig->dbPassword == NULL)
+	if (serverConfig == NULL){
+		free(server);
+		free_bstroute(routeroot); 
+		fatal("Unexpected: cannot load config");
+	}
+	if (serverConfig->dbName == NULL ||
+		serverConfig->dbUsername == NULL ||
+		serverConfig->dbPassword == NULL)
 		fatal("Could not read one or more necessary config parameters.");
 	int threadCreateRetVal;
 	while(1){
@@ -75,12 +81,12 @@ int main(int argc, char* argv){
 		}
 		hci->fd = fd;
 		hci->routeroot = routeroot;
-		hci->serverconfig = serverconfig;
+		hci->serverConfig = serverConfig;
 		threadCreateRetVal = pthread_create(&tid, NULL, &thread_handle_connection_routine, (void*) hci);
 		if (threadCreateRetVal != 0) {
 			mlog("SERVER", strerror(threadCreateRetVal));
 			close(fd);
-			free_handleconnectioninput(hci);	
+			free(hci);	
 		} else pthread_detach(tid);
 	}
 }
