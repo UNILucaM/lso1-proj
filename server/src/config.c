@@ -23,7 +23,7 @@ serverconfig *load_serverconfig_from_file(char *filePath){
 	if (configFile != NULL && lineptrbuf != NULL){
 		size_t  n = LINEPTRBUFSIZE;
 		while(getline(&lineptrbuf, &n, configFile) != -1){
-			if(sscanf(lineptrbuf, "%[^:]: %s\r", 
+			if(sscanf(lineptrbuf, "%[^:]: %s\n", 
                 		parameternamebuf, parametervaluebuf) != 2){
 				hasFailed = true;
 				break;
@@ -44,6 +44,15 @@ serverconfig *load_serverconfig_from_file(char *filePath){
 					hasFailed = true;
 					break;
 				}
+				strcpy(serverconfig->dbName, parametervaluebuf);
+			} else if (strcmp(parameternamebuf, "dbpassword") == 0){
+				serverconfig->dbPassword =
+					malloc((strlen(parametervaluebuf)+1)*sizeof(char));
+				if (serverconfig->dbPassword == NULL){
+					hasFailed = true;
+					break;
+				}
+				strcpy(serverconfig->dbPassword, parametervaluebuf);
 			} else if (strcmp(parameternamebuf, "serverport") == 0){
 				int port = strtol(parametervaluebuf, NULL, 10);
 				if (port == LONG_MIN || port == LONG_MAX){

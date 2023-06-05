@@ -246,7 +246,7 @@ void *thread_handle_connection_routine(void* inputptr){
 	memset(buf, 0, BUFSIZE);
 	while(requestStatus != DONE || shouldCloseConnection == false){
 		if(requestStatus == DONE){
-			size_t bytesReadFromNextMessage = (size_t) ((buf + byteCount - 1) - messageEndOffset);
+			size_t bytesReadFromNextMessage = (size_t) ((byteCount - 1) - messageEndOffset);
 			if (realUsedSize != BUFSIZE){
 				int reallocSize = (bytesReadFromNextMessage < BUFSIZE) ? BUFSIZE : bytesReadFromNextMessage;
 				buf = realloc(buf, reallocSize);
@@ -264,7 +264,8 @@ void *thread_handle_connection_routine(void* inputptr){
 			}
 			
 			if (buf != NULL){
-				memmove(buf, buf+messageEndOffset+1, bytesReadFromNextMessage);
+				if (bytesReadFromNextMessage > 0) memmove(buf, buf+messageEndOffset+1, bytesReadFromNextMessage);
+				else bytesReadFromNextMessage = 0;
 				memset(buf+bytesReadFromNextMessage, 0, realUsedSize - bytesReadFromNextMessage);
 				totalChunkedDataSize = 0;
 				toRead = realUsedSize;
@@ -575,14 +576,22 @@ bool start_thread(void *(*request_handler)(void*), void *input,
 		mlog("SERVER-CONN", "Could not add thread to list of active threads. Aborting creation.");
 		return false;	 
 	}
-	int createRetValue;                                                		
-	createRetValue = pthread_create(tid, NULL, request_handler, input);
+	int createRetValue;
+	pthread_attr_t *attr;
+	int initRet = pthread_attr_init(attr);
+	if (initRet != 0 || pthread_attr_setdetachstate(attr, PTHREAD_CREATE_DETACHED) != 0){
+		if (initRet == 0) pthread_attr_destroy(attr);
+		mlog("SERVER-CONN", "Could not set detached state. Aborting thread creation.");
+		remove_activethread(stv, tid);
+		return false;
+	}                                                		
+	createRetValue = pthread_create(tid, attr, request_handler, input);
 	if (createRetValue != 0){
 		mlog("SERVER-CONN", strerror(createRetValue));
+		pthread_attr_destroy(attr);
 		remove_activethread(stv, tid);
 		return false;	
 	}
-	pthread_detach(*tid);
 	return true;
 }
 
