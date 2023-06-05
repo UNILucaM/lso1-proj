@@ -98,9 +98,10 @@ void *thread_register_routine(void* arg){
 	//parsing body jansson
 	const char *requestUsername = NULL;
 	const char *requestPassword = NULL;
+	json_t *root = NULL;
 	if (hri->body != NULL){
 		json_error_t jsonErr;
-		json_t *root = json_loads(hri->body, 0, &jsonErr);
+		root  = json_loads(hri->body, 0, &jsonErr);
 		if (root != NULL){
 			if (json_is_object(root)){
 				json_t *jsonUsername = json_object_get(root, "username");
@@ -110,18 +111,19 @@ void *thread_register_routine(void* arg){
 					json_is_string(jsonPassword))
 				{
 					requestUsername = json_string_value(jsonUsername);
+					printf("%s\n", requestUsername);
 					requestPassword = json_string_value(jsonPassword);
 				}
 			}
 			
 		}
-		json_decref(root); 
 	}
 	//database                                                                                                          
        	if (requestUsername != NULL && requestPassword != NULL){
 		const char *params[] = {requestUsername, requestPassword};
+		printf("%s %s\n", requestUsername, requestPassword);
 		serverconfig *sc = hri->serverConfig;                                                                                      
-	        PGconn *conn = get_db_conn(sc->dbName, sc->dbUsername, sc->dbPassword, errBuf);                                            
+	        PGconn *conn = get_db_conn(sc->dbName, sc->dbUsername, sc->dbPassword, sc->dbAddr, errBuf);                                            
 	        if (conn == NULL || errBuf[0] != '\0'){                                                                                 
 	        	if (errBuf[0] != '\0') {                                                                                          
 	        		mlog("SERVER-REGISTER", errBuf);                                                                         
@@ -155,10 +157,27 @@ void *thread_register_routine(void* arg){
 	        }
 		PQfinish(conn);                                                                                                                      
 	} else statusCode = BAD_REQUEST;
-	free(errBuf);	
-	
+	free(errBuf);
+	if (root != NULL) json_decref(root);
+	char *header = malloc(sizeof(char)*4096);
+	header[0] = '\0';
+	bool shouldClose = false;
+	if (hri->headers != NULL){
+		mlog("SERVER-REGISTER", "Looking for headers...");
+		bstnode *connectionHeader = search(hri->headers, "Connection");
+		if (connectionHeader != NULL){
+			if (strcmp((char*)(connectionHeader->value), "keep-alive") == 0){
+				strcat(header, "Content-Length: 0\r\nConnection: keep-alive\r\n");
+			}
+			else {
+				strcat(header, "Content-Length: 0\r\nConnection: close\r\n");
+				shouldClose = true;
+			}
+		} else mlog("SERVER-REGISTER", "Did not find Connection header.");
+	}
+	strcat(header, "\r\n");
 	pthread_mutex_lock(&stv->fdMutex);	
-	write_response(stv->fd, statusCode, NULL, NULL, false);
+	write_response(stv->fd, statusCode, header, NULL, shouldClose);
 	pthread_mutex_unlock(&stv->fdMutex);
 	end_self_thread(hri, hri->stv, hri->tid);
 }
@@ -236,7 +255,6 @@ void *thread_handle_connection_routine(void* inputptr){
 	requeststatus requestStatus = PARSING_REQUEST_LINE;
 	serverconfig *serverConfig = hci->serverConfig;
 	pthread_t tid100continue = 0;	
-	printf("%s\n", serverConfig->dbUsername);	
 	if (buf == NULL || pathbuf == NULL || methodbuf == NULL || tmppathbuf == NULL 
 	|| headernamebuf == NULL || valuebuf == NULL || isHeaderFuncOutOfMemory == NULL){
 		mlog("SERVER-CONN", 
@@ -526,7 +544,6 @@ void *thread_handle_connection_routine(void* inputptr){
 						newThreadInput->method = method;
 						newThreadInput->headers = headerRoot;
 						newThreadInput->serverConfig = serverConfig;
-						printf("DO IT AGAIN %s\n", serverConfig->dbUsername);	
 						pthread_t *tid = malloc(sizeof(pthread_t));
 						newThreadInput->tid = tid;
 						if (tid100continue != 0)
@@ -564,6 +581,7 @@ void *thread_handle_connection_routine(void* inputptr){
 	close(stv->fd);
 	free_sharedthreadvariables(stv);
 	free(hci);
+	mlog("SERVER-CONN", "Exiting thread...");
 }
 
 bool start_thread(void *(*request_handler)(void*), void *input,

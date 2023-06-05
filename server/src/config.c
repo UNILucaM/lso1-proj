@@ -14,6 +14,7 @@ serverconfig *load_serverconfig_from_file(char *filePath){
 	serverconfig->dbName = NULL;
 	serverconfig->dbUsername = NULL;
 	serverconfig->dbPassword = NULL;
+	serverconfig->dbAddr = NULL;
 	serverconfig->port = PORT_UNSPECIFIED;
 	bool hasFailed = false;
 	char *parameternamebuf = malloc(sizeof(char)*LINEPTRBUFSIZE/2);
@@ -36,7 +37,6 @@ serverconfig *load_serverconfig_from_file(char *filePath){
 					hasFailed = true;
 					break;
 				}
-				printf("LOL %s", parametervaluebuf);
 				strcpy(serverconfig->dbName, parametervaluebuf);
                 	} else if (strcmp(parameternamebuf, "dbusername") == 0){
 				serverconfig->dbUsername =
@@ -45,7 +45,7 @@ serverconfig *load_serverconfig_from_file(char *filePath){
 					hasFailed = true;
 					break;
 				}
-				strcpy(serverconfig->dbName, parametervaluebuf);
+				strcpy(serverconfig->dbUsername, parametervaluebuf);
 			} else if (strcmp(parameternamebuf, "dbpassword") == 0){
 				serverconfig->dbPassword =
 					malloc((strlen(parametervaluebuf)+1)*sizeof(char));
@@ -63,7 +63,15 @@ serverconfig *load_serverconfig_from_file(char *filePath){
 					}
 				}
 				serverconfig->port = port;
-			}		
+			} else if (strcmp(parameternamebuf, "dbaddr") == 0){           	
+                                serverconfig->dbAddr =
+                                	malloc((strlen(parametervaluebuf)+1)*sizeof(char));
+                                if (serverconfig->dbAddr == NULL){
+                               		hasFailed = true;
+                               		break;
+                               	}
+                                strcpy(serverconfig->dbAddr, parametervaluebuf);
+			}
 		}
 	} else hasFailed = true;	
 	if (configFile != NULL) fclose(configFile);
@@ -82,5 +90,6 @@ void free_serverconfig(serverconfig *serverConfig){
 	free(serverConfig->dbName);    	
         free(serverConfig->dbUsername);
         free(serverConfig->dbPassword);
+	free(serverConfig->dbAddr);
         free(serverConfig);
 }

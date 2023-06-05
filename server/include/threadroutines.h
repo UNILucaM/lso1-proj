@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <pthread.h>
 
-#define REGISTERSTATEMENT "INSERT IN Account VALUES($1, $2);"
+#define REGISTERSTATEMENT "INSERT INTO Account VALUES($1, $2);"
 typedef struct handleconnectioninput{
 	int fd;
 	bstnode *routeroot;

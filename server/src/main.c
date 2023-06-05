@@ -65,7 +65,8 @@ int main(int argc, char **argv){
 	}
 	if (serverConfig->dbName == NULL ||
 		serverConfig->dbUsername == NULL ||
-		serverConfig->dbPassword == NULL)
+		serverConfig->dbPassword == NULL ||
+		serverConfig->dbAddr == NULL)
 		fatal("Could not read one or more necessary config parameters.");
 	int threadCreateRetVal;
 	while(1){
