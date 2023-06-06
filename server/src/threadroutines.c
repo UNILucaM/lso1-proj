@@ -111,7 +111,6 @@ void *thread_register_routine(void* arg){
 					json_is_string(jsonPassword))
 				{
 					requestUsername = json_string_value(jsonUsername);
-					printf("%s\n", requestUsername);
 					requestPassword = json_string_value(jsonPassword);
 				}
 			}
@@ -121,7 +120,6 @@ void *thread_register_routine(void* arg){
 	//database                                                                                                          
        	if (requestUsername != NULL && requestPassword != NULL){
 		const char *params[] = {requestUsername, requestPassword};
-		printf("%s %s\n", requestUsername, requestPassword);
 		serverconfig *sc = hri->serverConfig;                                                                                      
 	        PGconn *conn = get_db_conn(sc->dbName, sc->dbUsername, sc->dbPassword, sc->dbAddr, errBuf);                                            
 	        if (conn == NULL || errBuf[0] != '\0'){                                                                                 
@@ -163,7 +161,6 @@ void *thread_register_routine(void* arg){
 	header[0] = '\0';
 	bool shouldClose = false;
 	if (hri->headers != NULL){
-		mlog("SERVER-REGISTER", "Looking for headers...");
 		bstnode *connectionHeader = search(hri->headers, "Connection");
 		if (connectionHeader != NULL){
 			if (strcmp((char*)(connectionHeader->value), "keep-alive") == 0){
@@ -173,12 +170,13 @@ void *thread_register_routine(void* arg){
 				strcat(header, "Content-Length: 0\r\nConnection: close\r\n");
 				shouldClose = true;
 			}
-		} else mlog("SERVER-REGISTER", "Did not find Connection header.");
+		}
 	}
 	strcat(header, "\r\n");
 	pthread_mutex_lock(&stv->fdMutex);	
 	write_response(stv->fd, statusCode, header, NULL, shouldClose);
 	pthread_mutex_unlock(&stv->fdMutex);
+	free(header);
 	end_self_thread(hri, hri->stv, hri->tid);
 }
 
@@ -297,6 +295,7 @@ void *thread_handle_connection_routine(void* inputptr){
 				isHostParsed = false;
 				isDataChunkEncoded = false;
 				shouldSend100Continue = false;
+				requestStatus = PARSING_REQUEST_LINE;
 			}
 			
 		}
@@ -504,10 +503,8 @@ void *thread_handle_connection_routine(void* inputptr){
 								strncpy(body, buf+bodyStartOffset, contentLength);
 								body[contentLength] = '\0';
 								newThreadInput = malloc(sizeof(handlerequestinput));
-								bstargroot = malloc(sizeof(bstnode));
-								if (newThreadInput == NULL || bstargroot == NULL) {
+								if (newThreadInput == NULL) {
 									free(newThreadInput);
-									free(bstargroot);
 									mlog("SERVER-CONN", 
 											"Could not allocate memory for request.");
 									errCode = SERVICE_UNAVAILABLE;
@@ -516,7 +513,11 @@ void *thread_handle_connection_routine(void* inputptr){
 									if (arguments == NULL) newThreadInput->arguments = NULL;
 									else{
 										bstargroot = mkargbst(arguments);
-										if (bstargroot == NULL) errCode = SERVICE_UNAVAILABLE;
+										if (bstargroot == NULL) {
+											mlog("SERVER-CONN",
+												"Could not allocate memory for request.");
+											errCode = SERVICE_UNAVAILABLE;
+										}
 									}
 								}
 							}
@@ -540,7 +541,6 @@ void *thread_handle_connection_routine(void* inputptr){
 						newThreadInput->stv = stv;
 						newThreadInput->body = body;
 						newThreadInput->contentLength = contentLength;
-						newThreadInput->arguments = bstargroot;
 						newThreadInput->method = method;
 						newThreadInput->headers = headerRoot;
 						newThreadInput->serverConfig = serverConfig;
