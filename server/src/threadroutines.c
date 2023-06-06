@@ -689,24 +689,24 @@ void *thread_handle_connection_routine(void* inputptr){
 							} else {
 								strncpy(body, buf+bodyStartOffset, contentLength);
 								body[contentLength] = '\0';
-								newThreadInput = malloc(sizeof(handlerequestinput));
-								if (newThreadInput == NULL) {
+							}
+						}
+						newThreadInput = malloc(sizeof(handlerequestinput));
+						if (newThreadInput == NULL) {
+							free(newThreadInput);
+							mlog("SERVER-CONN", 
+									"Could not allocate memory for request.");
+							errCode = SERVICE_UNAVAILABLE;
+						}
+						else {
+							if (arguments == NULL) newThreadInput->arguments = NULL;
+							else{
+								bstargroot = mkargbst(arguments);
+								if (bstargroot == NULL) {
 									free(newThreadInput);
-									mlog("SERVER-CONN", 
-											"Could not allocate memory for request.");
+									mlog("SERVER-CONN",
+										"Could not allocate memory for request.");
 									errCode = SERVICE_UNAVAILABLE;
-								}
-								else {
-									if (arguments == NULL) newThreadInput->arguments = NULL;
-									else{
-										bstargroot = mkargbst(arguments);
-										if (bstargroot == NULL) {
-											free(newThreadInput);
-											mlog("SERVER-CONN",
-												"Could not allocate memory for request.");
-											errCode = SERVICE_UNAVAILABLE;
-										}
-									}
 								}
 							}
 						}
