@@ -79,7 +79,6 @@ serverconfig *load_serverconfig_from_file(char *filePath){
 	free(parametervaluebuf);
 	free(lineptrbuf);
 	if (hasFailed){
-		printf("OOF\n");
 		free_serverconfig(serverconfig);	
 		return NULL;
 	}
@@ -88,8 +87,8 @@ serverconfig *load_serverconfig_from_file(char *filePath){
 
 void free_serverconfig(serverconfig *serverConfig){
 	free(serverConfig->dbName);    	
-        free(serverConfig->dbUsername);
-        free(serverConfig->dbPassword);
+    free(serverConfig->dbUsername);
+    free(serverConfig->dbPassword);
 	free(serverConfig->dbAddr);
-        free(serverConfig);
+    free(serverConfig);
 }

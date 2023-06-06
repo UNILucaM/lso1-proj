@@ -199,7 +199,7 @@ lo stesso tipo di bevanda.
 
 CREATE OR REPLACE FUNCTION get_products_with_suggestion_score(username text)
 RETURNS table
-(pid integer, productName text, price float, quantity integer, productTypeVar productType,
+(pid integer, productName text, price float, productTypeVar productType,
 	imagePath text,  suggestionScore integer)
 LANGUAGE plpgsql
 AS $$
@@ -244,7 +244,7 @@ BEGIN
 		hashmap[productTypeCursorRow.productTypeText] = productTypeCursorRow.timesSold;
 	END LOOP;
 	close productTypeCursor;
-	FOR pid, productName, price, quantity, productTypeVar, imagePath, suggestionScore IN
+	FOR pid, productName, price, productTypeVar, imagePath, suggestionScore IN
 		SELECT *, 0 as score
 		FROM Product
 	LOOP

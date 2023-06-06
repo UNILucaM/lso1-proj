@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>   
+#include <stdio.h>
 
 #include "httphelper.h"
 #include "bstnode.h"
@@ -17,7 +18,8 @@ const supportedmethodconversionvalues supportedmethodconversiontable[] = {
 const char *responsecodestrings[] =
 	{"100 Continue", 
 	"200 OK", 
-	"400 Bad Request", 
+	"400 Bad Request",
+	"401 Unauthorized",
 	"404 Not Found",
 	"405 Method Not Allowed",
 	"500 Internal Server Error", 
@@ -142,18 +144,37 @@ bstnode *mkargbst(char *args){
 		tokenValue = strtok(NULL, "=&");
 		argName = malloc(sizeof(char)*(1+strlen(tokenName)));
 		argValue = malloc(sizeof(char)*(1+strlen(tokenValue)));
-		if (argName == NULL || argValue == NULL) return NULL;
+		if (argName == NULL || argValue == NULL){
+			if (argName != NULL) free(argName);
+			if (argValue == NULL) free(argValue);
+			return NULL;
+		}
 		strcpy(argName, tokenName);
 		strcpy(argValue, tokenValue);
 		bstnodePtr = create_bstnode(argName, argValue);
 		if (bstnodePtr == NULL) return NULL;
 		root = add_bstnode(root, bstnodePtr);
-		if (root == NULL) return NULL;
+		if (root == NULL){
+			free(bstnodePtr);
+			return NULL;
+		}
 		//Fai in modo che le prossime chiamate del while
 		//a strtok abbiano come primo parametro NULL
 		ptr = NULL;
 	}
 	return root;
+}
+
+void free_bstargs(bstnode *bstargsroot){
+	if (bstargsroot != NULL){
+		free_bstargs(bstargsroot->left);
+		free_bstargs(bstargsroot->right);
+		if (bstargsroot->key != NULL)
+			free(bstargsroot->key);
+		if (bstargsroot->value != NULL)
+			free(bstargsroot->value);
+		free(bstargsroot);
+	}
 }
 
 int write_response(int fd, responsecode responsecode, 
@@ -168,8 +189,24 @@ int write_response(int fd, responsecode responsecode,
 		len -= writtenBytes;
 		totalWrittenBytes += totalWrittenBytes;
 	}
+	printf("LOL LEN MBAACC %d\n", len);
 	if (shouldCloseFileDescriptor) close(fd);
 	return tlen;
+}
+
+int header_set_connection(bstnode *headerroot, char *header){
+	if (headerroot == NULL) return BAD_ARGS;
+	bstnode *connectionHeader = search(hri->headers, "Connection");
+	if (connectionHeader != NULL){
+		if (strcmp((char*)(connectionHeader->value), "keep-alive") == 0){
+					if (header != NULL) strcat(header, "Connection: keep-alive\r\n");
+					return KEEP_ALIVE;
+		}
+		else {
+			if (header != NULL) strcat(header, "Connection: close\r\n");
+			return CLOSE;
+		}
+	} else return NOT_FOUND;
 }
 
 char *form_response(responsecode responsecode, 
@@ -178,7 +215,7 @@ char *form_response(responsecode responsecode,
 	char *ptr;
 	const char *responsecodestring = get_response_code_string(responsecode);
 	char c;
-	int len = strlen(HTTPVER) + 2 + strlen(responsecodestring) 
+	int len = strlen(HTTPVER) + 3 + strlen(responsecodestring) 
 		+ strlen(HTTPEOL) 
 		+ ((header == NULL) ? 0 : strlen(header))
 		+ ((body == NULL) ? 0 : strlen(body));

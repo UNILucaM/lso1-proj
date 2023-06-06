@@ -6,7 +6,13 @@
 #include <stdbool.h>
 #include <pthread.h>
 
-#define REGISTERSTATEMENT "INSERT INTO Account VALUES($1, $2);"
+#define BUFSIZE 4096
+#define METHODBUFSIZE 32
+#define PATHBUFSIZE 4096
+#define VALUEBUFSIZE 512
+#define ACTIVETHREADSCHECKDELAY_MS 500
+
+
 typedef struct handleconnectioninput{
 	int fd;
 	bstnode *routeroot;
@@ -45,7 +51,6 @@ void *thread_send_100_continue(void*);
 
 void free_handlerequestinput(handlerequestinput*);
 void free_handle100continueinput(handle100continueinput*);
-void free_bstargs(bstnode*);
 void free_bstheaders(bstnode*);
 void free_sharedthreadvariables(sharedthreadvariables*);
 

@@ -20,6 +20,15 @@ uno per ogni metodo (eccetto HEAD, che usa lo stesso di GET).*/
 #define PUT_FLAG 0x4
 #define HEAD_FLAG 0x1
 
+
+
+
+//Usati per header_set_connection
+#define CLOSE 0
+#define KEEP_ALIVE 1
+#define NOT_FOUND -1
+#define BAD_ARGS -2
+
 #ifndef HTTPHELPER_H
 #define HTTPHELPER_H
 typedef enum {
@@ -42,10 +51,12 @@ typedef struct{
 
 extern const supportedmethodconversionvalues supportmethodconversiontable[];
 
+//Ordinati per numero dello statuscode.
 typedef enum{
 	CONTINUE,
 	OK,
 	BAD_REQUEST,
+	UNAUTHORIZED,
 	NOT_FOUND,
 	METHOD_NOT_ALLOWED,
 	NOT_IMPLEMENTED,
@@ -90,3 +101,5 @@ bstnode *mkroute(char*, void*(*)(void*), bool, int8_t);
 void free_bstroute(bstnode*);
 //NOTA: L'implementazione fornita distrugge la stringa originale.
 bstnode *mkargbst(char*);
+void free_bstargs(bstnode*);
+int header_set_connection(bstnode*, char*);

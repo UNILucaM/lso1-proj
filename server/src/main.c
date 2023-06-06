@@ -22,8 +22,7 @@
 #include "config.h"
 
 #define SERVERCONFIGFILENAME "config.cfg"
-#define QUEUE_LENGTH 5
-#define BUFSIZE 4096
+#define QUEUE_LENGTH 100
 #define PORT 8080
 
 serverinfo *server = NULL;
@@ -40,8 +39,20 @@ bstnode *init_routes(){
 }
 
 int main(int argc, char **argv){
+	serverConfig = load_serverconfig_from_file
+		(((fileName == NULL) ? SERVERCONFIGFILENAME : fileName));
+	if (serverConfig == NULL){
+		fatal("Unexpected: cannot load config");
+	}
+	if (serverConfig->dbName == NULL ||
+		serverConfig->dbUsername == NULL ||
+		serverConfig->dbPassword == NULL)
+			fatal("Could not read one or more necessary config parameters.");
 	server = create_server(PORT, QUEUE_LENGTH);
-	if (server == NULL) fatal("Unexpected: server is null");
+	if (server == NULL){
+		free_serverconfig(serverConfig);
+		fatal("Unexpected: server is null");
+	}
 	routeroot = init_routes();
 	if (routeroot == NULL) fatal("Unexpected: routeroot is null");
 	char *fileName = NULL;
@@ -56,18 +67,6 @@ int main(int argc, char **argv){
 				break;
 		}	
 	}	
-	serverConfig = load_serverconfig_from_file
-		(((fileName == NULL) ? SERVERCONFIGFILENAME : fileName));
-	if (serverConfig == NULL){
-		free(server);
-		free_bstroute(routeroot); 
-		fatal("Unexpected: cannot load config");
-	}
-	if (serverConfig->dbName == NULL ||
-		serverConfig->dbUsername == NULL ||
-		serverConfig->dbPassword == NULL ||
-		serverConfig->dbAddr == NULL)
-		fatal("Could not read one or more necessary config parameters.");
 	int threadCreateRetVal;
 	while(1){
 		mlog("SERVER", "Waiting for new connection...");

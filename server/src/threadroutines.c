@@ -5,6 +5,7 @@
 #include "bstnode.h"
 #include "dbconn.h"
 #include "errorhandling.h"
+#include "strutil.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,44 +17,240 @@
 #include <jansson.h>
 #include <sys/socket.h>
 
-#define ERRBUFSIZE 4096
-#define BUFSIZE 4096
-#define METHODBUFSIZE 32
-#define PATHBUFSIZE 4096
-#define VALUEBUFSIZE 512
-#define ACTIVETHREADSCHECKDELAY_MS 500
-
 void *thread_products_routine(void* arg){
+	char *tag = "SERVER-PRODUCTS";
 	if (arg == NULL){
-		mlog("SERVER-PRODUCTS",
+		mlog(tag,
 			"Passed NULL to thread_products_routine. Program will be terminated.");
 		fatal("Unexpected NULL argument while starting thread.");
 	}
 	handlerequestinput *hri = (handlerequestinput*)arg; 
 	sharedthreadvariables *stv = hri->stv;
         if (stv == NULL){
-        	mlog("SERVER-PRODUCTS",
+        	mlog(tag,
         		"Stv is NULL. Program will be terminated.");
         	fatal("Unexpected NULL sharedThreadVariables while staring thread.");
         }
-	//TODO
+	responsecode statusCode = UNDEFINED;
+	char *errBuf = malloc(sizeof(char)*ERRBUFSIZE);
+	if (errBuf == NULL) {
+		mlog(tag,
+			"Could not allocate memory for errBuf. Quitting thread.");
+		end_self_thread(hri, hri->stv, hri->tid);
+	}
+	errBuf[0] = '\0';
+	bstnode *argroot = hri->arguments;
+	bstnode *arg;
+	int type = PRODUCT_TYPE_INVALID;
+	char *username;
+	char *body;
+	if (argroot != NULL){
+		arg = search(argroot, "type");
+		if (arg != NULL && arg->value != NULL){
+			if (strcmp((char*)(arg->value), "cocktail") == 0){
+				type = PRODUCT_TYPE_COCKTAIL;
+			}
+			else if (strcmp((char*)(arg->value), "frullato") == 0) {
+				type = PRODUCT_TYPE_FRULLATO;
+			}
+			else if (strcmp((char*)(arg->value), "suggested") == 0) {
+				arg = search(argroot, "username");
+				if (arg != NULL && arg->value != NULL){
+					type = PRODUCT_TYPE_SUGGESTED;
+					username = (char*) (arg->value);
+				}
+				else type = PRODUCT_TYPE_INVALID;
+			} else {
+				type = PRODUCT_TYPE_INVALID;
+			}
+		} 
+	}
+	if (type == PRODUCT_TYPE_INVALID) statusCode = BAD_REQUEST;
+	else {
+		//database
+		serverconfig *sc = hri->serverConfig;  
+		PGconn *conn = get_db_conn
+			(sc->dbName, sc->dbUsername, sc->dbPassword, sc->dbAddr, errBuf);    
+		if (conn == NULL || errBuf[0] != '\0'){                                                                                 
+			if (errBuf[0] != '\0') {                                                                                          
+				mlog(tag, errBuf);                                                                         
+				statusCode = INTERNAL_SERVER_ERROR;                                                                                         
+			}                                                                                                                 
+			else {                                                                                                            
+				mlog(tag                                                                                   
+					"Unexpected errBuf NULL, but conn is NULL. Quitting thread, but this should not happen.");
+				free(errBuf);        
+				end_self_thread(hri, hri->stv, hri->tid);                                                                 
+			}                                                                                                                 
+		} else {
+			char *statement;
+			PGresult *queryResult;
+			if (type == PRODUCT_TYPE_COCKTAIL) statement = GETPRODUCTCOCKTAILSTATEMENT;
+			else if (type == PRODUCT_TYPE_FRULLATO) statement = GETPRODUCTFRULLATOSTATEMENT;
+			else statement = GETPRODUCTSUGGESTEDSCORESTATEMENT;
+			if (type != PRODUCT_TYPE_SUGGESTED){
+				queryResult =                                                                                           
+					PQexec(conn,                                                                                        
+					statement);
+			} else {
+				const char *params[] = {username};               
+				queryResult =                                                                                           
+					PQexecParams(conn,                                                                                        
+					statement,                                                                                
+					1,                                                                                                
+					NULL,                                                                                             
+					params,
+					NULL, NULL, 0);
+			}
+			ExecStatusType execStatus = PQresultStatus(queryResult);                                                                                                                                                                                                            
+			if (execStatus != PGRES_TUPLES_OK){
+				if (execStatus == PGRES_NONFATAL_ERROR ||
+					execStatus == PGRES_FATAL_ERROR)
+				{statusCode = BAD_REQUEST;}
+				else statusCode = INTERNAL_SERVER_ERROR; 
+				mlog(tag,
+					PQerrorMessage(conn));	
+			} else {
+					body = make_json_array_from_suggestedproductqueryresult
+						(queryResult, errBuf, (type == PRODUCT_TYPE_SUGGESTED));
+					if (body == NULL || errBuf[0] != '\0'){
+						mlog(tag, ((errBuf[0] != '\0') ? errBuf : "Body is null."));
+						statusCode = BAD_REQUEST;
+					} else statusCode = OK;
+			}
+			PQclear(queryResult);
+		}
+		PQfinish(conn);                        
+	}			
+	free(errBuf);
+	char *header = malloc(sizeof(char)*BUFSIZE);
+	header[0] = '\0';
+	bool shouldClose = false;
+	int connectionHeader = NOT_FOUND;
+	if (hri->headers != NULL) connectionHeader = header_set_connection(hri->headers, header);
+	shouldClose = (connectionHeader == CLOSE);
+	char tmp[32];
+	//L'int massimo ha 10 cifre. 10+1
+	char tmpN[11];
+	if (body != NULL){
+		sprintf(tmpN, "%d", strlen(body));
+	} else {
+		tmpN[0] = '0';
+		tmpN[1] = '\0';
+	}
+	char *tmpPtr;
+	tmp[0] = '\0';
+	ptr = chainstrcat(tmp , "Content-Length: ");
+	ptr = chainstrcat(tmp, tmpN);
+	chainstrcat(tmp, "\r\n");
+	strcat(header, tmp);
+	strcat(header, "\r\n");
+	pthread_mutex_lock(&stv->fdMutex);	
+	write_response(stv->fd, statusCode, header, body, shouldClose);
+	pthread_mutex_unlock(&stv->fdMutex);
+	free(header);
 	end_self_thread(hri, hri->stv, hri->tid);
 }
 
 void *thread_login_routine(void* arg){
-	if (arg == NULL){                                         	
-        	mlog("SERVER-LOGIN",
-        		"Passed NULL to thread_login_routine. Program will be terminated.");
+	char *tag = "SERVER-LOGIN";
+	if (arg == NULL){
+		mlog(tag, 
+			"Passed NULL to thread_login_routine. Program will be terminated.");
 		fatal("Unexpected NULL argument while starting thread.");
-        }
-        handlerequestinput *hri = (handlerequestinput*)arg; 
-	sharedthreadvariables *stv = hri->stv;
-        if (stv == NULL){
-        	mlog("SERVER-LOGIN",
+	}
+	handlerequestinput *hri = (handlerequestinput*)arg;
+	sharedthreadvariables *stv = hri->stv;                                    	
+	if (stv == NULL){
+		mlog(tag,
         		"Stv is NULL. Program will be terminated.");
-        	fatal("Unexpected NULL sharedThreadVariables while staring thread.");
-        }
-	//TODO
+        fatal("Unexpected NULL sharedThreadVariables while staring thread.");
+	}
+	responsecode statusCode = UNDEFINED;
+	char *errBuf = malloc(sizeof(char)*ERRBUFSIZE);
+	if (errBuf == NULL) {
+		mlog(tag,
+			"Could not allocate memory for errBuf. Quitting thread.");
+		end_self_thread(hri, hri->stv, hri->tid);
+	}
+	errBuf[0] = '\0';
+	//parsing body jansson
+	const char *requestUsername = NULL;
+	const char *requestPassword = NULL;
+	json_t *root = NULL;
+	if (hri->body != NULL){
+		json_error_t jsonErr;
+		root  = json_loads(hri->body, 0, &jsonErr);
+		if (root != NULL){
+			if (json_is_object(root)){
+				json_t *jsonUsername = json_object_get(root, "username");
+				json_t *jsonPassword = json_object_get(root, "password");
+				if (jsonUsername != NULL && jsonPassword != NULL &&
+					json_is_string(jsonUsername) &&
+					json_is_string(jsonPassword))
+				{
+					requestUsername = json_string_value(jsonUsername);
+					requestPassword = json_string_value(jsonPassword);
+				}
+			}
+		}
+	}
+	//database                                                                                                          
+	if (requestUsername != NULL && requestPassword != NULL){
+		const char *params[] = {requestUsername, requestPassword};
+		serverconfig *sc = hri->serverConfig;                                                                                      
+		PGconn *conn = get_db_conn
+			(sc->dbName, sc->dbUsername, sc->dbPassword, sc->dbAddr, errBuf);                                            
+		if (conn == NULL || errBuf[0] != '\0'){                                                                                 
+			if (errBuf[0] != '\0') {                                                                                          
+				mlog(tag, errBuf);                                                                         
+				statusCode = INTERNAL_SERVER_ERROR;                                                                                         
+			}                                                                                                                 
+			else {                                                                                                            
+				mlog(tag                                                                                   
+					"Unexpected errBuf NULL, but conn is NULL. Quitting thread, but this should not happen.");
+				free(errBuf);        
+				end_self_thread(hri, hri->stv, hri->tid);                                                                 
+			}                                                                                                                 
+		}	                                                                                                                 
+		if (statusCode  == UNDEFINED){                                                                                                          
+			PGresult *queryResult =                                                                                           
+				PQexecParams(conn,                                                                                        
+				LOGINSTATEMENT,                                                                                
+				2,                                                                                                
+				NULL,                                                                                             
+				params,
+				NULL, NULL, 0);
+			ExecStatusType execStatus = PQresultStatus(queryResult);                                                                                                                                                                                                            
+			if (execStatus != PGRES_TUPLES_OK){
+				if (execStatus == PGRES_NONFATAL_ERROR ||
+					execStatus == PGRES_FATAL_ERROR)
+				{statusCode = BAD_REQUEST;}
+				else statusCode = INTERNAL_SERVER_ERROR; 
+				mlog(tag,
+					PQerrorMessage(conn));	
+			} else {
+				if (PQntuples(queryResult) == 1) statusCode = OK;
+				else statusCode = UNAUTHORIZED;
+			}
+			PQclear(queryResult);
+		}
+		PQfinish(conn);                                                                                                                      
+	} else statusCode = BAD_REQUEST;
+	free(errBuf);
+	if (root != NULL) json_decref(root);
+	char *header = malloc(sizeof(char)*BUFSIZE);
+	header[0] = '\0';
+	bool shouldClose = false;
+	int connectionHeader = NOT_FOUND;
+	if (hri->headers != NULL) connectionHeader = header_set_connection(hri->headers, header);
+	shouldClose = (connectionHeader == CLOSE);
+	strcat(header, "Content-Length: 0\r\n");
+	strcat(header, "\r\n");
+	pthread_mutex_lock(&stv->fdMutex);	
+	write_response(stv->fd, statusCode, header, NULL, shouldClose);
+	pthread_mutex_unlock(&stv->fdMutex);
+	free(header);
 	end_self_thread(hri, hri->stv, hri->tid);
 }
 
@@ -82,11 +279,11 @@ void *thread_register_routine(void* arg){
 	}
 	handlerequestinput *hri = (handlerequestinput*)arg;
 	sharedthreadvariables *stv = hri->stv;                                    	
-        if (stv == NULL){
+	if (stv == NULL){
 		mlog("SERVER-REGISTER",
         		"Stv is NULL. Program will be terminated.");
-        	fatal("Unexpected NULL sharedThreadVariables while staring thread.");
-        }
+        fatal("Unexpected NULL sharedThreadVariables while staring thread.");
+	}
 	responsecode statusCode = UNDEFINED;
 	char *errBuf = malloc(sizeof(char)*ERRBUFSIZE);
 	if (errBuf == NULL) {
@@ -114,36 +311,36 @@ void *thread_register_routine(void* arg){
 					requestPassword = json_string_value(jsonPassword);
 				}
 			}
-			
 		}
 	}
 	//database                                                                                                          
-       	if (requestUsername != NULL && requestPassword != NULL){
+	if (requestUsername != NULL && requestPassword != NULL){
 		const char *params[] = {requestUsername, requestPassword};
 		serverconfig *sc = hri->serverConfig;                                                                                      
-	        PGconn *conn = get_db_conn(sc->dbName, sc->dbUsername, sc->dbPassword, sc->dbAddr, errBuf);                                            
-	        if (conn == NULL || errBuf[0] != '\0'){                                                                                 
-	        	if (errBuf[0] != '\0') {                                                                                          
-	        		mlog("SERVER-REGISTER", errBuf);                                                                         
-	        		statusCode = SERVICE_UNAVAILABLE;                                                                                         
-	        	}                                                                                                                 
-	        	else {                                                                                                            
-	        		mlog("SERVER-REGISTER",                                                                                   
-	        			"Unexpected *errBuf NULL, but conn is NULL. Quitting thread, but this should not happen.");
+		PGconn *conn = get_db_conn
+			(sc->dbName, sc->dbUsername, sc->dbPassword, sc->dbAddr, errBuf);                                            
+		if (conn == NULL || errBuf[0] != '\0'){                                                                                 
+			if (errBuf[0] != '\0') {                                                                                          
+				mlog("SERVER-REGISTER", errBuf);                                                                         
+				statusCode = SERVICE_UNAVAILABLE;                                                                                         
+			}                                                                                                                 
+			else {                                                                                                            
+				mlog("SERVER-REGISTER",                                                                                   
+					"Unexpected *errBuf NULL, but conn is NULL. Quitting thread, but this should not happen.");
 				free(errBuf);        
-	        		end_self_thread(hri, hri->stv, hri->tid);                                                                 
-	        	}                                                                                                                 
-	        }	                                                                                                                 
-	        if (statusCode  == UNDEFINED){                                                                                                          
-	        	PGresult *queryResult =                                                                                           
-	        		PQexecParams(conn,                                                                                        
-	        			REGISTERSTATEMENT,                                                                                
-	        			2,                                                                                                
-	        			NULL,                                                                                             
-	        			params,
-					NULL, NULL, 0);
+				end_self_thread(hri, hri->stv, hri->tid);                                                                 
+			}                                                                                                                 
+		}	                                                                                                                 
+		if (statusCode  == UNDEFINED){                                                                                                          
+			PGresult *queryResult =                                                                                           
+				PQexecParams(conn,                                                                                        
+				REGISTERSTATEMENT,                                                                                
+				2,                                                                                                
+				NULL,                                                                                             
+				params,
+				NULL, NULL, 0);
 			ExecStatusType execStatus = PQresultStatus(queryResult);                                                                                                                                                                                                            
-	        	if (execStatus != PGRES_COMMAND_OK){
+			if (execStatus != PGRES_COMMAND_OK){
 				if (execStatus == PGRES_NONFATAL_ERROR ||
 					execStatus == PGRES_FATAL_ERROR)
 				{statusCode = BAD_REQUEST;}
@@ -152,26 +349,18 @@ void *thread_register_routine(void* arg){
 					PQerrorMessage(conn));	
 			} else statusCode = OK;
 			PQclear(queryResult);
-	        }
+		}
 		PQfinish(conn);                                                                                                                      
 	} else statusCode = BAD_REQUEST;
 	free(errBuf);
 	if (root != NULL) json_decref(root);
-	char *header = malloc(sizeof(char)*4096);
+	char *header = malloc(sizeof(char)*BUFSIZE);
 	header[0] = '\0';
 	bool shouldClose = false;
-	if (hri->headers != NULL){
-		bstnode *connectionHeader = search(hri->headers, "Connection");
-		if (connectionHeader != NULL){
-			if (strcmp((char*)(connectionHeader->value), "keep-alive") == 0){
-				strcat(header, "Content-Length: 0\r\nConnection: keep-alive\r\n");
-			}
-			else {
-				strcat(header, "Content-Length: 0\r\nConnection: close\r\n");
-				shouldClose = true;
-			}
-		}
-	}
+	int connectionHeader = NOT_FOUND;
+	if (hri->headers != NULL) connectionHeader = header_set_connection(hri->headers, header);
+	shouldClose = (connectionHeader == CLOSE);
+	strcat(header, "Content-Length: 0\r\n");
 	strcat(header, "\r\n");
 	pthread_mutex_lock(&stv->fdMutex);	
 	write_response(stv->fd, statusCode, header, NULL, shouldClose);
@@ -194,7 +383,7 @@ void *thread_send_100_continue(void* arg){
 		fatal("Unexpected NULL sharedThreadVariables while staring thread.");
 	}
 	pthread_mutex_lock(&stv->fdMutex);
-	write_response(stv->fd, CONTINUE, NULL, NULL, false);
+	write_response(stv->fd, CONTINUE, "\r\n", NULL, false);
 	pthread_mutex_unlock(&stv->fdMutex);
 	end_self_thread_100continue(h100ci, h100ci->stv, h100ci->tid);                       
 }
@@ -207,13 +396,12 @@ void *thread_handle_connection_routine(void* inputptr){
 	pthread_mutex_init(&(stv->fdMutex), NULL);
  
 	int byteCount = 0;
-    	int bytesJustRead = 0;
+    int bytesJustRead = 0;
 	int toRead = BUFSIZE;
 	int realUsedSize = BUFSIZE;
 	int contentLength = 0;
 	int totalChunkedDataSize = 0;
 	int chunkedDataSize;
-	int writeReturnVal;
 	
 	size_t bodyStartOffset;
 	size_t messageEndOffset;
@@ -385,13 +573,12 @@ void *thread_handle_connection_routine(void* inputptr){
 							arguments = strtok(NULL, "?");                                          	
 							if (!isValidArgStr(arguments)) 
 								{errCode = BAD_REQUEST; break;}
-						}
-							
+						}	
 					}
 					requestedroute = search(routeroot, token);
 					if (requestedroute == NULL) {errCode = NOT_FOUND; break;}
 					else{
-						routeinfo* rinfo = (routeinfo*)(requestedroute->value);
+						routeinfo *rinfo = (routeinfo*)(requestedroute->value);
 						int8_t methodFlag = get_flag_value_for_method(method);						
                                                 if (!(rinfo->acceptedMethodsMask & methodFlag))
 							{errCode = METHOD_NOT_ALLOWED; break;}
@@ -514,6 +701,7 @@ void *thread_handle_connection_routine(void* inputptr){
 									else{
 										bstargroot = mkargbst(arguments);
 										if (bstargroot == NULL) {
+											free(newThreadInput);
 											mlog("SERVER-CONN",
 												"Could not allocate memory for request.");
 											errCode = SERVICE_UNAVAILABLE;
@@ -637,18 +825,6 @@ void free_handlerequestinput(handlerequestinput *hri){
 
 void free_handle100continueinput(handle100continueinput *h100ci){
 	free(h100ci);
-}
-
-void free_bstargs(bstnode *bstargsroot){
-	if (bstargsroot != NULL){
-		free_bstargs(bstargsroot->left);
-		free_bstargs(bstargsroot->right);
-		if (bstargsroot->key != NULL)
-			free(bstargsroot->key);
-		if (bstargsroot->value != NULL)
-			free(bstargsroot->value);
-		free(bstargsroot);
-	}
 }
 
 void free_bstheaders(bstnode *bstheaders){
