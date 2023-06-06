@@ -189,7 +189,6 @@ int write_response(int fd, responsecode responsecode,
 		len -= writtenBytes;
 		totalWrittenBytes += totalWrittenBytes;
 	}
-	printf("LOL LEN MBAACC %d\n", len);
 	if (shouldCloseFileDescriptor) close(fd);
 	return tlen;
 }
@@ -215,7 +214,7 @@ char *form_response(responsecode responsecode,
 	char *ptr;
 	const char *responsecodestring = get_response_code_string(responsecode);
 	char c;
-	int len = strlen(HTTPVER) + 3 + strlen(responsecodestring) 
+	int len = strlen(HTTPVER) + 2  + strlen(responsecodestring) 
 		+ strlen(HTTPEOL) 
 		+ ((header == NULL) ? 0 : strlen(header))
 		+ ((body == NULL) ? 0 : strlen(body));

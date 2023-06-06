@@ -484,6 +484,8 @@ void *thread_handle_connection_routine(void* inputptr){
 				isDataChunkEncoded = false;
 				shouldSend100Continue = false;
 				requestStatus = PARSING_REQUEST_LINE;
+				headerRoot = NULL;
+				bstargroot = NULL;
 			}
 			
 		}
@@ -595,7 +597,7 @@ void *thread_handle_connection_routine(void* inputptr){
 							{errCode = BAD_REQUEST; break;}
 						if (!requiresBody) {
 							requestStatus = RESPONDING; 
-							messageEndOffset = (size_t) (startLinePtr+1); 
+							messageEndOffset = (size_t) (startLinePtr + 1 - buf); 
 							break;
 						}
 						if (shouldSend100Continue){
@@ -731,6 +733,7 @@ void *thread_handle_connection_routine(void* inputptr){
 						newThreadInput->contentLength = contentLength;
 						newThreadInput->method = method;
 						newThreadInput->headers = headerRoot;
+						newThreadInput->arguments = bstargroot;
 						newThreadInput->serverConfig = serverConfig;
 						pthread_t *tid = malloc(sizeof(pthread_t));
 						newThreadInput->tid = tid;
