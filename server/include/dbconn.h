@@ -22,5 +22,5 @@
 
 #define OUT_OF_MEMORY -1
 
-PGconn *get_db_conn(char*, char*, char*, char**);
+PGconn *get_db_conn(char*, char*, char*, char*, char*);
 char *make_json_array_from_productqueryresult(PGresult*, char*, bool);

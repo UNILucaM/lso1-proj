@@ -7,6 +7,7 @@
 #include <pthread.h>
 
 #define BUFSIZE 4096
+#define ERRBUFSIZE 512
 #define METHODBUFSIZE 32
 #define PATHBUFSIZE 4096
 #define VALUEBUFSIZE 512

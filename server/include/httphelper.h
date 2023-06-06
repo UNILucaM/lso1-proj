@@ -3,6 +3,9 @@
 
 #include "bstnode.h"
 
+#ifndef HTTPHELPER_H
+#define HTTPHELPER_H
+
 //Versione di HTTP del server
 #define HTTPVER "HTTP/1.1"
 //End-Of-Line standard di HTTP
@@ -26,11 +29,9 @@ uno per ogni metodo (eccetto HEAD, che usa lo stesso di GET).*/
 //Usati per header_set_connection
 #define CLOSE 0
 #define KEEP_ALIVE 1
-#define NOT_FOUND -1
 #define BAD_ARGS -2
+#define HEADER_NOT_FOUND -1
 
-#ifndef HTTPHELPER_H
-#define HTTPHELPER_H
 typedef enum {
 	UNSUPPORTED = -1,
 	GET,

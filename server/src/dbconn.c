@@ -1,8 +1,11 @@
 #include <libpq-fe.h>
 #include <jansson.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
+
+#include "dbconn.h"
 
 const char *productcolumnnames[] =
 	{"pid", 
@@ -16,27 +19,27 @@ const char *productcolumnnames[] =
 	"503 Service Unavailable", 
 	""};
 
-PGconn *get_db_conn(char *dbName, char* username, char *password, char **err){
-	char *formatStr = "user=%s password=%s dbname=%s";
+PGconn *get_db_conn(char *dbName, char* username, char *password, char *dbAddr, char *err){
+	char *formatStr = "user=%s password=%s dbname=%s hostaddr=%s";
 	if (dbName == NULL || username == NULL || password == NULL || err == NULL){
-		if (err != NULL) *err = "Invalid parameters.";
+		if (err != NULL) strcpy(err, "Invalid parameters.");
 		return NULL;
 	}
-	/*Sottraiamo 5 perché ogni stringa da rimpiazzare viene indicata con
+	/*Sottraiamo 2n - 1 perché ogni stringa da rimpiazzare viene indicata con
 	%s in formatStr, quindi sono 2 caratteri extra per parametro, 
-	quindi 6 caratteri extra, ma dobbiamo contare anche che 
-	serve un carattere per il NULL, quindi 5*/
+	ma dobbiamo contare anche che serve un carattere per il NULL, quindi 2n - 1*/
+	int paramN = 4;
 	int n = strlen(formatStr) + strlen(dbName) + strlen(username)
-	+ strlen(password) - 5;
+	+ strlen(password) + strlen(dbAddr) - (2*paramN) - 1;
 	char *buf = malloc(sizeof(char)*n);
 	if (buf == NULL){
-		if (err != NULL) *err = "Could not allocate buffer";
+		if (err != NULL) strcpy(err, "Could not allocate buffer");
 		return NULL;
 	}
-	if (sprintf(buf, formatStr, username, password, dbName) >  0){
+	if (sprintf(buf, formatStr, username, password, dbName, dbAddr) >  0){
 		PGconn *conn = PQconnectdb(buf);
 		if (PQstatus(conn) == CONNECTION_BAD){
-			*err = PQerrorMessage(conn);
+			if (err != NULL) strcpy(err, PQerrorMessage(conn));
 			PQfinish(conn);
 		}
 		else return conn;	

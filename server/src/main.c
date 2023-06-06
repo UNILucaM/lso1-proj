@@ -39,6 +39,16 @@ bstnode *init_routes(){
 }
 
 int main(int argc, char **argv){
+	char *fileName = NULL;
+	int c;
+        while ((c = getopt(argc, argv, "f::")) != -1){
+        	switch (c){
+        		//filename opt
+        		case 'f':
+        			fileName = strdup(optarg);
+        			break;
+        	}	
+        }	
 	serverConfig = load_serverconfig_from_file
 		(((fileName == NULL) ? SERVERCONFIGFILENAME : fileName));
 	if (serverConfig == NULL){
@@ -46,27 +56,19 @@ int main(int argc, char **argv){
 	}
 	if (serverConfig->dbName == NULL ||
 		serverConfig->dbUsername == NULL ||
-		serverConfig->dbPassword == NULL)
+		serverConfig->dbPassword == NULL ||
+		serverConfig->dbAddr == NULL)
 			fatal("Could not read one or more necessary config parameters.");
-	server = create_server(PORT, QUEUE_LENGTH);
+	int port = (serverConfig->port == PORT_UNSPECIFIED) ? PORT : serverConfig->port;
+	server = create_server(port, QUEUE_LENGTH);
 	if (server == NULL){
 		free_serverconfig(serverConfig);
 		fatal("Unexpected: server is null");
 	}
 	routeroot = init_routes();
 	if (routeroot == NULL) fatal("Unexpected: routeroot is null");
-	char *fileName = NULL;
 	pthread_t tid;
-	handleconnectioninput *hci;
-	int c;
-	while ((c = getopt(argc, argv, "f::")) != -1){
-		switch (c){
-			//filename opt
-			case 'f':
-				fileName = strdup(optarg);
-				break;
-		}	
-	}	
+	handleconnectioninput *hci;	
 	int threadCreateRetVal;
 	while(1){
 		mlog("SERVER", "Waiting for new connection...");

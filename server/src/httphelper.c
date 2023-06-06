@@ -196,7 +196,7 @@ int write_response(int fd, responsecode responsecode,
 
 int header_set_connection(bstnode *headerroot, char *header){
 	if (headerroot == NULL) return BAD_ARGS;
-	bstnode *connectionHeader = search(hri->headers, "Connection");
+	bstnode *connectionHeader = search(headerroot, "Connection");
 	if (connectionHeader != NULL){
 		if (strcmp((char*)(connectionHeader->value), "keep-alive") == 0){
 					if (header != NULL) strcat(header, "Connection: keep-alive\r\n");
@@ -206,7 +206,7 @@ int header_set_connection(bstnode *headerroot, char *header){
 			if (header != NULL) strcat(header, "Connection: close\r\n");
 			return CLOSE;
 		}
-	} else return NOT_FOUND;
+	} else return HEADER_NOT_FOUND;
 }
 
 char *form_response(responsecode responsecode, 

@@ -40,24 +40,24 @@ void *thread_products_routine(void* arg){
 	}
 	errBuf[0] = '\0';
 	bstnode *argroot = hri->arguments;
-	bstnode *arg;
+	bstnode *argNode;
 	int type = PRODUCT_TYPE_INVALID;
 	char *username;
-	char *body;
+	char *body = NULL;
 	if (argroot != NULL){
-		arg = search(argroot, "type");
-		if (arg != NULL && arg->value != NULL){
-			if (strcmp((char*)(arg->value), "cocktail") == 0){
+		argNode = search(argroot, "type");
+		if (argNode != NULL && argNode->value != NULL){
+			if (strcmp((char*)(argNode->value), "cocktail") == 0){
 				type = PRODUCT_TYPE_COCKTAIL;
 			}
-			else if (strcmp((char*)(arg->value), "frullato") == 0) {
+			else if (strcmp((char*)(argNode->value), "frullato") == 0) {
 				type = PRODUCT_TYPE_FRULLATO;
 			}
-			else if (strcmp((char*)(arg->value), "suggested") == 0) {
-				arg = search(argroot, "username");
-				if (arg != NULL && arg->value != NULL){
+			else if (strcmp((char*)(argNode->value), "suggested") == 0) {
+				argNode = search(argroot, "username");
+				if (argNode != NULL && argNode->value != NULL){
 					type = PRODUCT_TYPE_SUGGESTED;
-					username = (char*) (arg->value);
+					username = (char*) (argNode->value);
 				}
 				else type = PRODUCT_TYPE_INVALID;
 			} else {
@@ -77,7 +77,7 @@ void *thread_products_routine(void* arg){
 				statusCode = INTERNAL_SERVER_ERROR;                                                                                         
 			}                                                                                                                 
 			else {                                                                                                            
-				mlog(tag                                                                                   
+				mlog(tag,                                                                                   
 					"Unexpected errBuf NULL, but conn is NULL. Quitting thread, but this should not happen.");
 				free(errBuf);        
 				end_self_thread(hri, hri->stv, hri->tid);                                                                 
@@ -111,12 +111,12 @@ void *thread_products_routine(void* arg){
 				mlog(tag,
 					PQerrorMessage(conn));	
 			} else {
-					body = make_json_array_from_suggestedproductqueryresult
-						(queryResult, errBuf, (type == PRODUCT_TYPE_SUGGESTED));
-					if (body == NULL || errBuf[0] != '\0'){
-						mlog(tag, ((errBuf[0] != '\0') ? errBuf : "Body is null."));
-						statusCode = BAD_REQUEST;
-					} else statusCode = OK;
+				body = make_json_array_from_productqueryresult
+					(queryResult, errBuf, (type == PRODUCT_TYPE_SUGGESTED));
+				if (body == NULL || errBuf[0] != '\0'){
+					mlog(tag, ((errBuf[0] != '\0') ? errBuf : "Body is null."));
+					statusCode = BAD_REQUEST;
+				} else statusCode = OK;
 			}
 			PQclear(queryResult);
 		}
@@ -126,19 +126,19 @@ void *thread_products_routine(void* arg){
 	char *header = malloc(sizeof(char)*BUFSIZE);
 	header[0] = '\0';
 	bool shouldClose = false;
-	int connectionHeader = NOT_FOUND;
+	int connectionHeader = HEADER_NOT_FOUND;
 	if (hri->headers != NULL) connectionHeader = header_set_connection(hri->headers, header);
 	shouldClose = (connectionHeader == CLOSE);
 	char tmp[32];
 	//L'int massimo ha 10 cifre. 10+1
 	char tmpN[11];
 	if (body != NULL){
-		sprintf(tmpN, "%d", strlen(body));
+		sprintf(tmpN, "%d", (int) strlen(body));
 	} else {
 		tmpN[0] = '0';
 		tmpN[1] = '\0';
 	}
-	char *tmpPtr;
+	char *ptr;
 	tmp[0] = '\0';
 	ptr = chainstrcat(tmp , "Content-Length: ");
 	ptr = chainstrcat(tmp, tmpN);
@@ -207,7 +207,7 @@ void *thread_login_routine(void* arg){
 				statusCode = INTERNAL_SERVER_ERROR;                                                                                         
 			}                                                                                                                 
 			else {                                                                                                            
-				mlog(tag                                                                                   
+				mlog(tag,                                                                                   
 					"Unexpected errBuf NULL, but conn is NULL. Quitting thread, but this should not happen.");
 				free(errBuf);        
 				end_self_thread(hri, hri->stv, hri->tid);                                                                 
@@ -242,7 +242,7 @@ void *thread_login_routine(void* arg){
 	char *header = malloc(sizeof(char)*BUFSIZE);
 	header[0] = '\0';
 	bool shouldClose = false;
-	int connectionHeader = NOT_FOUND;
+	int connectionHeader = HEADER_NOT_FOUND;
 	if (hri->headers != NULL) connectionHeader = header_set_connection(hri->headers, header);
 	shouldClose = (connectionHeader == CLOSE);
 	strcat(header, "Content-Length: 0\r\n");
