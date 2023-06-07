@@ -18,7 +18,85 @@
 #include <sys/socket.h>
 
 void *thread_images_routine(void *arg){
-
+	char *tag = "SERVER-IMAGES";
+	if (arg == NULL){
+		mlog(tag, 
+			"Passed NULL to thread_images_routine. Program will be terminated.");
+		fatal("Unexpected NULL argument while starting thread.");
+	}
+	handlerequestinput *hri = (handlerequestinput*)arg;
+	sharedthreadvariables *stv = hri->stv;                                    	
+	if (stv == NULL){
+		mlog(tag,
+        		"Stv is NULL. Program will be terminated.");
+        fatal("Unexpected NULL sharedThreadVariables while staring thread.");
+	}
+	responsecode statusCode = UNDEFINED;
+	bstnode *argRoot = hri->arguments;
+	bstnode *headerRoot = hri->headers;
+	serverconfig sc = hri->serverConfig;
+	bstnode *genericNode; 
+	time_t *headerLastModified = NULL;
+	bool isIfModifiedSince = false;
+	genericNode = search(headerRoot, "If-Modified-Since");
+	if (genericNode == NULL) genericNode = search(headerRoot, "If-Unmodified-Since");
+	else isIfModifiedSince = true;
+	if (genericNode != NULL){
+		headerLastModified = get_http_time_from_str((char*)genericNode->value));
+	}
+	char *imageName = NULL;
+	char *tmpImageName = NULL;
+	char *baseImagePath = ((sc->imagePath == NULL) ? IMAGES_PATH : sc->imagePath);
+	char *image;
+	time_t lastModified;
+	imagesize imgSize = SIZE_UNDEFINED;
+	genericNode = search(argRoot, "imagename");
+	if (genericNode == NULL) statusCode = BAD_REQUEST;
+	else{
+		imageName = (char*) genericNode->value;
+		genericNode = search(argRoot, "size");
+		if (genericNode != NULL) 
+			imgSize = convert_string_to_imagesize_enum((char*) genericNode->value);
+		if (imgSize == SIZE_UNDEFINED) imgSize = MEDIUM;
+		tmpImageName = get_path_for_size(imageName, imgSize);
+		if (tmpImageName == NULL) statusCode = BAD_REQUEST;
+		else{
+			imageName = malloc(sizeof(char)*
+				(strlen(tmpImageName) + strlen(baseImagePath) + 1));
+			if (imageName == NULL) statusCode == INTERNAL_SERVER_ERROR;
+			else {
+				strcpy(imageName, baseImagePath);
+				strcat(imageName, tmpImageName);
+				image = load_image_from_path(imageName, &imageByteSize, headerLastModified, isIfModifiedSince);
+				if (image == NULL && imageByteSize != NO_NEED_TO_LOAD){
+					mlog(tag, get_image_load_error(imageByteSize));
+					statusCode = (imageByteSize == STAT_ERROR) ? 
+						NOT_FOUND : INTERNAL_SERVER_ERROR;
+				} else statusCode = OK;
+				free(imageName);
+			}
+		}
+	}
+	if (tmpImageSize != NULL) free(tmpImageSize);
+	if (headerLastModified != NULL) free(headerLastModified);
+	char *header = malloc(sizeof(char)*BUFSIZE);
+	int contentLength = (imageByteSize < 0) ? 0 : imageByteSize;
+	bool shouldClose = false;
+	if (header != NULL){
+		 shouldClose = create_basic_header(header, headerRoot, contentLength);
+		 strcat(header, "\r\n");
+		 if (imageByteSize == NO_NEED_TO_LOAD){
+			statusCode = (isIfModifiedSince) ? 
+				NOT_MODIFIED : PRECONDITION_FAILED;
+		}
+	}
+	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
+	pthread_mutex_lock(&stv->fdMutex);	
+	write_response(stv->fd, statusCode, header, image, shouldClose);
+	pthread_mutex_unlock(&stv->fdMutex);
+	if (header != NULL) free(header);
+	if (image != NULL) free(image);
+	end_self_thread(hri, hri->stv, hri->tid);
 }
 
 void *thread_products_routine(void *arg){
@@ -30,11 +108,11 @@ void *thread_products_routine(void *arg){
 	}
 	handlerequestinput *hri = (handlerequestinput*)arg; 
 	sharedthreadvariables *stv = hri->stv;
-        if (stv == NULL){
-        	mlog(tag,
+	if (stv == NULL){
+			mlog(tag,
         		"Stv is NULL. Program will be terminated.");
         	fatal("Unexpected NULL sharedThreadVariables while staring thread.");
-        }
+	}
 	responsecode statusCode = UNDEFINED;
 	char *errBuf = malloc(sizeof(char)*ERRBUFSIZE);
 	if (errBuf == NULL) {
@@ -128,31 +206,18 @@ void *thread_products_routine(void *arg){
 	}			
 	free(errBuf);
 	char *header = malloc(sizeof(char)*BUFSIZE);
-	header[0] = '\0';
+	int contentLength = (body == NULL) ? 0 : (int) strlen(body);
 	bool shouldClose = false;
-	int connectionHeader = HEADER_NOT_FOUND;
-	if (hri->headers != NULL) connectionHeader = header_set_connection(hri->headers, header);
-	shouldClose = (connectionHeader == CLOSE);
-	char tmp[32];
-	//L'int massimo ha 10 cifre. 10+1
-	char tmpN[11];
-	if (body != NULL){
-		sprintf(tmpN, "%d", (int) strlen(body));
-	} else {
-		tmpN[0] = '0';
-		tmpN[1] = '\0';
+	if (header != NULL){
+		 shouldClose = create_basic_header(header, headerRoot, contentLength);
+		 strcat(header, "\r\n");
 	}
-	char *ptr;
-	tmp[0] = '\0';
-	ptr = chainstrcat(tmp , "Content-Length: ");
-	ptr = chainstrcat(tmp, tmpN);
-	chainstrcat(tmp, "\r\n");
-	strcat(header, tmp);
-	strcat(header, "\r\n");
+	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
 	pthread_mutex_lock(&stv->fdMutex);	
 	write_response(stv->fd, statusCode, header, body, shouldClose);
 	pthread_mutex_unlock(&stv->fdMutex);
-	free(header);
+	if (header != NULL) free(header);
+	if (body != NULL) free(body);
 	end_self_thread(hri, hri->stv, hri->tid);
 }
 
@@ -244,13 +309,13 @@ void *thread_login_routine(void* arg){
 	free(errBuf);
 	if (root != NULL) json_decref(root);
 	char *header = malloc(sizeof(char)*BUFSIZE);
-	header[0] = '\0';
+	int contentLength = 0;
 	bool shouldClose = false;
-	int connectionHeader = HEADER_NOT_FOUND;
-	if (hri->headers != NULL) connectionHeader = header_set_connection(hri->headers, header);
-	shouldClose = (connectionHeader == CLOSE);
-	strcat(header, "Content-Length: 0\r\n");
-	strcat(header, "\r\n");
+	if (header != NULL){
+		 shouldClose = create_basic_header(header, hri->headers, contentLength);
+		 strcat(header, "\r\n");
+	}
+	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
 	pthread_mutex_lock(&stv->fdMutex);	
 	write_response(stv->fd, statusCode, header, NULL, shouldClose);
 	pthread_mutex_unlock(&stv->fdMutex);
@@ -259,39 +324,159 @@ void *thread_login_routine(void* arg){
 }
 
 void *thread_products_purchase_routine(void* arg){
+	char *tag = "SERVER-PRODUCTSPURCHASE";
 	if (arg == NULL){                                         		
-        	mlog("SERVER-PRODUCTS_PURCHASE",
-        		"Passed NULL to thread_products_purchase_routine. Program will be terminated.");
+		mlog(tag,
+			"Passed NULL to thread_products_purchase_routine. Program will be terminated.");
 		fatal("Unexpected NULL argument while starting thread.");
-        }
-        handlerequestinput *hri = (handlerequestinput*)arg; 
+	}
+	handlerequestinput *hri = (handlerequestinput*)arg; 
 	sharedthreadvariables *stv = hri->stv;
-        if (stv == NULL){
-        	mlog("SERVER-PRODUCTS_PURCHASE",
-        		"Stv is NULL. Program will be terminated.");
+	if (stv == NULL){
+		mlog(tag,
+			"Stv is NULL. Program will be terminated.");
 		fatal("Unexpected NULL sharedThreadVariables while staring thread.");
-        }
-        //TODO
-        end_self_thread(hri, hri->stv, hri->tid);
+	}
+	responsecode statusCode = UNDEFINED;
+	char *errBuf = malloc(sizeof(char)*ERRBUFSIZE);
+	if (errBuf == NULL) {
+		mlog(tag,
+			"Could not allocate memory for errBuf. Quitting thread.");
+		end_self_thread(hri, hri->stv, hri->tid);
+	}
+	errBuf[0] = '\0';
+	//parsing body jansson
+	const char *requestUsername = NULL;
+	json_t *root = NULL;
+	json_t *jsonArray = NULL;
+	json_t *jsonUnpurchasedArray = NULL;
+	if (hri->body != NULL){
+		json_error_t jsonErr;
+		root  = json_loads(hri->body, 0, &jsonErr);
+		if (root != NULL){
+			if (json_is_object(root)){
+				json_t *jsonUsername = json_object_get(root, "username");
+				if (jsonUsername != NULL && json_is_string(jsonUsername))
+				{
+					requestUsername = json_string_value(jsonUsername);
+				}
+			}
+		}
+	}
+	PGconn *conn = get_db_conn
+		(sc->dbName, sc->dbUsername, sc->dbPassword, sc->dbAddr, errBuf);
+	if (conn == NULL || errBuf[0] != '\0'){                                                                                 
+		if (errBuf[0] != '\0') {                                                                                          
+			mlog(tag, errBuf);                                                                         
+			statusCode = SERVICE_UNAVAILABLE;                                                                                         
+		}                                                                                                                 
+		else {                                                                                                            
+			mlog(tag,                                                                                   
+				"Unexpected *errBuf NULL, but conn is NULL. Quitting thread, but this should not happen.");
+			free(errBuf);        
+			end_self_thread(hri, hri->stv, hri->tid);                                                                 
+		}                                                                                                                 
+	}		
+	if (requestUsername != NULL && statusCode == UNDEFINED){
+		jsonArray = json_object_get(root, "products");
+		jsonUnpurchasedArray = json_array();
+		if (jsonArray != NULL && jsonUnpurchasedArray != NULL && json_is_array(jsonArray)){
+			json_t *jsonProduct;
+			json_t *jsonProductPid;
+			json_t *jsonProductQuantity;
+			int pid;
+			int quantity;
+			size_t index;
+			//11 = numero massimo di cifre in un int + 1
+			char strPid[11];
+			char strQuantity[11];
+			const char *params[] = {requestUsername, strPid, strQuantity};
+			serverconfig *sc = hri->serverConfig;			
+			json_array_foreach(array, index, jsonProduct) {
+				if (json_is_object(jsonProduct)){
+					jsonProductPid = json_object_get(jsonProduct, "pid");
+					jsonProductQuantity = json_object_get(jsonProductQuantity, "quantity");
+					if (json_is_integer(jsonProductPid) 
+						&& json_is_integer(jsonProductQuantity)){
+						pid = json_integer_value("pid");
+						quantity = json_integer_value("quantity");
+						sprintf(strPid, "%d", pid);
+						sprintf(strQuantity, "%d", quantity);
+						PGresult *queryResult =                                                                                           
+							PQexecParams(conn,                                                                                        
+							SALESTATEMENT,                                                                                
+							3,                                                                                                
+							NULL,                                                                                             
+							params,
+							NULL, NULL, 0);
+						ExecStatusType execStatus = PQresultStatus(queryResult);                                                                                                                                                                                                            
+						if (execStatus != PGRES_COMMAND_OK){
+							if (execStatus == PGRES_NONFATAL_ERROR ||
+								execStatus == PGRES_FATAL_ERROR)
+							{
+								jsonProduct = json_object();
+								if (jsonProduct == NULL) statusCode = SERVICE_UNAVAILABLE;
+								else {
+									jsonProductPid = json_integer(pid);
+									json_object_set_new(jsonProduct, "pid", jsonProductPid);
+									if (json_array_append_new(jsonUnpurchasedArray, jsonProduct) == -1)
+										statusCode = SERVICE_UNAVAILABLE;
+								}
+							}
+							else statusCode = INTERNAL_SERVER_ERROR; 
+							mlog(tag,
+								PQerrorMessage(conn));	
+						}
+						PQclear(queryResult);
+						if (statusCode == INTERNAL_SERVER_ERROR || statusCode == SERVICE_UNAVAILABLE){
+							break;
+						}
+					}
+						                              
+				}
+			} PQfinish(conn);        
+		}
+	} else statusCode = BAD_REQUEST;
+	if (statusCode == UNDEFINED) statusCode = OK;
+	if (root != NULL) json_decref(root);
+	if (jsonArray != NULL) json_decref(jsonArray);
+	char *body = NULL;
+	if (json_array_size(jsonUnpurchasedArray) != 0) body = json_dumps(jsonUnpurchasedArray, 0);
+	json_decref(jsonUnpurchasedArray);
+	char *header = malloc(sizeof(char)*BUFSIZE);
+	int contentLength = (body == NULL) ? 0 : (int) strlen(body);
+	bool shouldClose = false;
+	if (header != NULL){
+		 shouldClose = create_basic_header(header, headerRoot, contentLength);
+		 strcat(header, "\r\n");
+	}
+	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
+	pthread_mutex_lock(&stv->fdMutex);	
+	write_response(stv->fd, statusCode, header, body, shouldClose);
+	pthread_mutex_unlock(&stv->fdMutex);
+	free(header);
+	free(body);
+    end_self_thread(hri, hri->stv, hri->tid);
 }
 
 void *thread_register_routine(void* arg){
+	char *tag = "SERVER-REGISTER";
 	if (arg == NULL){
-		mlog("SERVER-REGISTER", 
+		mlog(tag, 
 			"Passed NULL to thread_register_routine. Program will be terminated.");
 		fatal("Unexpected NULL argument while starting thread.");
 	}
 	handlerequestinput *hri = (handlerequestinput*)arg;
 	sharedthreadvariables *stv = hri->stv;                                    	
 	if (stv == NULL){
-		mlog("SERVER-REGISTER",
+		mlog(tag,
         		"Stv is NULL. Program will be terminated.");
         fatal("Unexpected NULL sharedThreadVariables while staring thread.");
 	}
 	responsecode statusCode = UNDEFINED;
 	char *errBuf = malloc(sizeof(char)*ERRBUFSIZE);
 	if (errBuf == NULL) {
-		mlog("SERVER-REGISTER",
+		mlog(tag,
 			"Could not allocate memory for errBuf. Quitting thread.");
 		end_self_thread(hri, hri->stv, hri->tid);
 	}
@@ -325,11 +510,11 @@ void *thread_register_routine(void* arg){
 			(sc->dbName, sc->dbUsername, sc->dbPassword, sc->dbAddr, errBuf);                                            
 		if (conn == NULL || errBuf[0] != '\0'){                                                                                 
 			if (errBuf[0] != '\0') {                                                                                          
-				mlog("SERVER-REGISTER", errBuf);                                                                         
+				mlog(tag, errBuf);                                                                         
 				statusCode = SERVICE_UNAVAILABLE;                                                                                         
 			}                                                                                                                 
 			else {                                                                                                            
-				mlog("SERVER-REGISTER",                                                                                   
+				mlog(tag,                                                                                   
 					"Unexpected *errBuf NULL, but conn is NULL. Quitting thread, but this should not happen.");
 				free(errBuf);        
 				end_self_thread(hri, hri->stv, hri->tid);                                                                 
@@ -349,7 +534,7 @@ void *thread_register_routine(void* arg){
 					execStatus == PGRES_FATAL_ERROR)
 				{statusCode = BAD_REQUEST;}
 				else statusCode = INTERNAL_SERVER_ERROR; 
-				mlog("SERVER-REGISTER",
+				mlog(tag,
 					PQerrorMessage(conn));	
 			} else statusCode = OK;
 			PQclear(queryResult);
@@ -359,13 +544,13 @@ void *thread_register_routine(void* arg){
 	free(errBuf);
 	if (root != NULL) json_decref(root);
 	char *header = malloc(sizeof(char)*BUFSIZE);
-	header[0] = '\0';
+	int contentLength = 0;
 	bool shouldClose = false;
-	int connectionHeader = NOT_FOUND;
-	if (hri->headers != NULL) connectionHeader = header_set_connection(hri->headers, header);
-	shouldClose = (connectionHeader == CLOSE);
-	strcat(header, "Content-Length: 0\r\n");
-	strcat(header, "\r\n");
+	if (header != NULL){
+		 shouldClose = create_basic_header(header, headerRoot, contentLength);
+		 strcat(header, "\r\n");
+	}
+	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
 	pthread_mutex_lock(&stv->fdMutex);	
 	write_response(stv->fd, statusCode, header, NULL, shouldClose);
 	pthread_mutex_unlock(&stv->fdMutex);

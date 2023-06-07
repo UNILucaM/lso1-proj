@@ -64,13 +64,21 @@ serverconfig *load_serverconfig_from_file(char *filePath){
 				}
 				serverconfig->port = port;
 			} else if (strcmp(parameternamebuf, "dbaddr") == 0){           	
-                                serverconfig->dbAddr =
-                                	malloc((strlen(parametervaluebuf)+1)*sizeof(char));
-                                if (serverconfig->dbAddr == NULL){
-                               		hasFailed = true;
-                               		break;
-                               	}
-                                strcpy(serverconfig->dbAddr, parametervaluebuf);
+				serverconfig->dbAddr =
+					malloc((strlen(parametervaluebuf)+1)*sizeof(char));
+				if (serverconfig->dbAddr == NULL){
+					hasFailed = true;
+					break;
+				}
+				strcpy(serverconfig->dbAddr, parametervaluebuf);
+			} else if (strcmp(parameternamebuf, "imagepath") == 0){
+				serverConfig->imagePath =
+					malloc((strlen(parametervaluebuf)+1)*sizeof(char));
+				if (serverconfig->imagePath == NULL){
+					hasFailed = true;
+					break;
+				}
+				strcpy(serverconfig->imagePath, parametervaluebuf);
 			}
 		}
 	} else hasFailed = true;	
@@ -86,9 +94,15 @@ serverconfig *load_serverconfig_from_file(char *filePath){
 }
 
 void free_serverconfig(serverconfig *serverConfig){
-	free(serverConfig->dbName);    	
-    free(serverConfig->dbUsername);
-    free(serverConfig->dbPassword);
-	free(serverConfig->dbAddr);
+	if (serverConfig->dbName != NULL)
+		free(serverConfig->dbName);    	
+    if (serverConfig->dbUsername != NULL)
+		free(serverConfig->dbUsername);
+    if (serverConfig->dPassword != NULL)
+		free(serverConfig->dbPassword);
+	if (serverConfig->dbAddr != NULL)
+		free(serverConfig->dbAddr);
+	if (serverConfig->imagePath != NULL)
+		free(serverConfig->imagePath);
     free(serverConfig);
 }

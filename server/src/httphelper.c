@@ -1,8 +1,10 @@
+#define _XOPEN_SOURCE
 #include <string.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>   
 #include <stdio.h>
+#include <time.h>
 
 #include "httphelper.h"
 #include "bstnode.h"
@@ -17,11 +19,13 @@ const supportedmethodconversionvalues supportedmethodconversiontable[] = {
 
 const char *responsecodestrings[] =
 	{"100 Continue", 
-	"200 OK", 
+	"200 OK",
+	"304 Not Modified",
 	"400 Bad Request",
 	"401 Unauthorized",
 	"404 Not Found",
 	"405 Method Not Allowed",
+	"412 Precondition Failed",
 	"500 Internal Server Error", 
 	"501 Not Implemented", 
 	"503 Service Unavailable", 
@@ -229,5 +233,72 @@ char *form_response(responsecode responsecode,
 	if (body != NULL) ptr = chainstrcat(ptr, body);
 	if (ilen != NULL) *ilen = len - 1;
 	return response;
+}
+
+/*Ricordiamo, come detto in httphelper.h, che se una stringa che rappresenta un anno
+è più di 50 anni nel futuro, deve essere trattata come un anno del secolo scorso.
+C'è un particolare conflitto quindi con strptime, che invece tratta la stringa
+del formato %Y come nel secolo scorso se rappresenta un numero da 69 a 99.
+Questo conflitto viene risolto con un check nella funzione.*/
+time_t *get_http_time_from_str(char* str){
+	if (str == NULL) return NULL;
+	time_t *mtime = malloc(sizeof(time_t));
+	if (mtime == NULL) return NULL;
+    char *fPtr = HTTP_DATE_FORMAT_1;
+    int format = 1;
+    struct tm mtm;
+    while ((strptime(str, fPtr, &mtm)) == NULL && format < 4){
+        format++;
+        if (format == 2) fPtr = HTTP_DATE_FORMAT_2;
+        else if (format == 3) fPtr = HTTP_DATE_FORMAT_3;
+    } 
+    if (format == 4) return NULL;
+    else {
+        if(format == 2){
+            time_t currentTime = time(NULL);
+            struct tm *tmCurrentTime = gmtime(&currentTime);
+            /*Controlla che il valore non sia stato "erroneamente" convertito
+            da strptime.*/
+            if (mtm.tm_year < 100){
+                if ((mtm.tm_year - (tmCurrentTime->tm_year - 100)) < 51) mtm.tm_year += 100;
+            }
+        }
+		*mtime = mktime(&mtm);
+		return mtime;
+    }
+}
+
+char *get_http_time(){
+    time_t currentTime = time(NULL);
+    struct tm *tmCurrentTime = gmtime(&currentTime);
+    char *str = malloc(sizeof(char)*32);
+    strftime(str, 32, HTTP_DATE_FORMAT_1, tmCurrentTime);
+    return str;
+}
+
+bool create_basic_header(char *header, bstnode *headerRoot, int contentLength){
+	if (header != NULL) return;
+	header[0] = '\0';
+	bool shouldClose;
+	int connectionHeader = NOT_FOUND;
+	if (headerRoot != NULL) connectionHeader = header_set_connection(headerRoot, header);
+	shouldClose = (connectionHeader == CLOSE);
+	//Content length
+	char tmp[32];
+	//L'int massimo ha 10 cifre. 10+1
+	char tmpN[11];
+	sprintf(tmpN, "%d", contentLength);
+	char *ptr;
+	tmp[0] = '\0';
+	ptr = chainstrcat(tmp , "Content-Length: ");
+	ptr = chainstrcat(tmp, tmpN);
+	ptr = chainstrcat(tmp, "\r\n");
+	ptr = chainstrcat(tmp, "Date: ");
+	char *time = get_http_time();
+	ptr = chainstrcat(tmp, time);
+	ptr = chainstrcat(tmp, "\r\n");
+	strcat(header, tmp);
+	free(time);
+	return shouldClose;
 }
 

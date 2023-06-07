@@ -5,6 +5,7 @@
 #define GETPRODUCTCOCKTAILSTATEMENT "SELECT * FROM Product WHERE productTypeVar = 'Cocktail';"
 #define GETPRODUCTFRULLATOSTATEMENT "SELECT * FROM Product WHERE productTypeVar = 'Frullato';"
 #define GETPRODUCTSUGGESTEDSCORESTATEMENT "SELECT * FROM get_products_with_suggestion_score($1) WHERE suggestionScore != 0 ORDER BY suggestionscore DESC;"
+#define SALESTATEMENT "CALL upsert_sale($1, $2, $3);"
 
 #define PRODUCT_TYPE_INVALID -1
 #define PRODUCT_TYPE_COCKTAIL 1
