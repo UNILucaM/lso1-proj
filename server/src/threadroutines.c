@@ -17,7 +17,11 @@
 #include <jansson.h>
 #include <sys/socket.h>
 
-void *thread_products_routine(void* arg){
+void *thread_images_routine(void *arg){
+
+}
+
+void *thread_products_routine(void *arg){
 	char *tag = "SERVER-PRODUCTS";
 	if (arg == NULL){
 		mlog(tag,

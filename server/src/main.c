@@ -35,6 +35,7 @@ bstnode *init_routes(){
 		mkroute("/login", &thread_login_routine, true, POST_FLAG),
 		mkroute("/products", &thread_products_routine, false, GET_FLAG),
 		mkroute("/products/purchase", &thread_products_purchase_routine, true, POST_FLAG),
+		mkroute("/images", &thread_images_routine, false, GET_FLAG),
 		NULL);
 }
 

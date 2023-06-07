@@ -10,6 +10,7 @@ set(FILES bstnode
 	errorhandling 
 	httphelper
 	linkedlist
+	mimage
 	mlog 
 	serverinfo 
 	strutil 

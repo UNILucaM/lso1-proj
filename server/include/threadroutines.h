@@ -48,6 +48,7 @@ void *thread_register_routine(void*);
 void *thread_login_routine(void*);
 void *thread_products_routine(void*);
 void *thread_products_purchase_routine(void*);
+void *thread_images_routine(void*);
 void *thread_send_100_continue(void*);
 
 void free_handlerequestinput(handlerequestinput*);
