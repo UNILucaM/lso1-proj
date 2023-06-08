@@ -731,10 +731,11 @@ void *thread_handle_connection_routine(void* inputptr){
 			}
 			byteCount += bytesJustRead;
 			nextReadLocation += bytesJustRead;
-			if ((buf + byteCount - 1) >= (buf + messageEndOffset) 
-					&& requestStatus == OBTAINING_BODY){
-				requestStatus = RESPONDING;
-				break;
+			if (requestStatus == OBTAINING_BODY){
+				if ((buf + byteCount - 1) >= (buf + messageEndOffset)){
+					requestStatus = RESPONDING;
+					break;
+				}
 			}
 		}
 		while(1){

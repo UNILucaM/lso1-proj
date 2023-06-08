@@ -83,12 +83,12 @@ const char *get_response_code_string(responsecode code){
 
 bstnode *mkroute(char* path, void *(*request_handler)(void*),
 	bool requiresBody, int8_t acceptedMethodsMask){
-	routeinfo *routeinfo = malloc(sizeof(routeinfo));
-	if (routeinfo == NULL) return NULL;
-    	routeinfo->request_handler = request_handler;
-	routeinfo->requiresBody = requiresBody;
-	routeinfo->acceptedMethodsMask = acceptedMethodsMask;
-	bstnode *route = create_bstnode(path, (void*) routeinfo);
+	routeinfo *ri = malloc(sizeof(routeinfo));
+	if (ri == NULL) return NULL;
+    	ri->request_handler = request_handler;
+	ri->requiresBody = requiresBody;
+	ri->acceptedMethodsMask = acceptedMethodsMask;
+	bstnode *route = create_bstnode(path, (void*) ri);
 	return route;
 }
 
