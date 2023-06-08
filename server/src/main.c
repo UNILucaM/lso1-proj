@@ -13,6 +13,7 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <sys/un.h>
+#include <sys/time.h>
 
 #include "errorhandling.h"
 #include "mlog.h"
@@ -23,6 +24,10 @@
 #include "config.h"
 
 #define SERVERCONFIGFILENAME "config.cfg"
+#define READ_TIMEOUT_S 2
+#define READ_TIMEOUT_MS 0
+#define WRITE_TIMEOUT_S 2
+#define WRITE_TIMEOUT_MS 0
 #define QUEUE_LENGTH 100
 #define PORT 8080
 
@@ -77,6 +82,13 @@ int main(int argc, char **argv){
 	pthread_t tid;
 	handleconnectioninput *hci;	
 	int threadCreateRetVal;
+	struct timeval timeoutW;
+	struct timeval timeoutR;
+	bool failedToSetOptions = false;
+	timeoutR.tv_sec = READ_TIMEOUT_S;
+	timeoutW.tv_sec = WRITE_TIMEOUT_S;
+	timeoutR.tv_usec = READ_TIMEOUT_MS;
+	timeoutW.tv_usec = WRITE_TIMEOUT_MS;
 	while(1){
 		mlog("SERVER", "Waiting for new connection...");
 		int fd = accept(server->server_fd, NULL, NULL);
@@ -91,11 +103,18 @@ int main(int argc, char **argv){
 		hci->fd = fd;
 		hci->routeroot = routeroot;
 		hci->serverConfig = serverConfig;
-		threadCreateRetVal = pthread_create(&tid, NULL, &thread_handle_connection_routine, (void*) hci);
-		if (threadCreateRetVal != 0) {
-			mlog("SERVER", strerror(threadCreateRetVal));
+		if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeoutR, sizeof(struct timeval)) != -1 &&
+			setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeoutW, sizeof(struct timeval)) != -1){
+			threadCreateRetVal = pthread_create(&tid, NULL, &thread_handle_connection_routine, (void*) hci);
+		} else failedToSetOptions = true;
+		if (failedToSetOptions || threadCreateRetVal != 0) {
+			char *errStr = (failedToSetOptions) ?
+				"Failed to set socket options." : strerror(threadCreateRetVal);
+			mlog("SERVER", errStr);
+			mlog("SERVER", strerror(errno));
 			close(fd);
 			free(hci);	
 		} else pthread_detach(tid);
+		failedToSetOptions = false;
 	}
 }

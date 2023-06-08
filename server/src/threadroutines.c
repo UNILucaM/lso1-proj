@@ -94,9 +94,7 @@ void *thread_images_routine(void *arg){
 		}
 	}
 	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
-	pthread_mutex_lock(&stv->fdMutex);	
-	write_response(stv->fd, statusCode, header, image, shouldClose);
-	pthread_mutex_unlock(&stv->fdMutex);
+	attempt_response(tag, stv, statusCode, header, image, shouldClose);
 	if (header != NULL) free(header);
 	if (image != NULL) free(image);
 	end_self_thread(hri, hri->stv, hri->tid);
@@ -217,9 +215,7 @@ void *thread_products_routine(void *arg){
 		 strcat(header, "\r\n");
 	}
 	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
-	pthread_mutex_lock(&stv->fdMutex);	
-	write_response(stv->fd, statusCode, header, body, shouldClose);
-	pthread_mutex_unlock(&stv->fdMutex);
+	attempt_response(tag, stv, statusCode, header, body, shouldClose);
 	if (header != NULL) free(header);
 	if (body != NULL) free(body);
 	end_self_thread(hri, hri->stv, hri->tid);
@@ -320,9 +316,7 @@ void *thread_login_routine(void* arg){
 		 strcat(header, "\r\n");
 	}
 	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
-	pthread_mutex_lock(&stv->fdMutex);	
-	write_response(stv->fd, statusCode, header, NULL, shouldClose);
-	pthread_mutex_unlock(&stv->fdMutex);
+	attempt_response(tag, stv, statusCode, header, NULL, shouldClose);
 	free(header);
 	end_self_thread(hri, hri->stv, hri->tid);
 }
@@ -354,6 +348,7 @@ void *thread_products_purchase_routine(void* arg){
 	json_t *root = NULL;
 	json_t *jsonArray = NULL;
 	json_t *jsonUnpurchasedArray = NULL;
+	bool wasAtleastOnePurchaseSuccessful = false;
 	if (hri->body != NULL){
 		json_error_t jsonErr;
 		root  = json_loads(hri->body, 0, &jsonErr);
@@ -401,7 +396,7 @@ void *thread_products_purchase_routine(void* arg){
 			json_array_foreach(jsonArray, index, jsonProduct) {
 				if (json_is_object(jsonProduct)){
 					jsonProductPid = json_object_get(jsonProduct, "pid");
-					jsonProductQuantity = json_object_get(jsonProductQuantity, "quantity");
+					jsonProductQuantity = json_object_get(jsonProduct, "quantity");
 					if (json_is_integer(jsonProductPid) 
 						&& json_is_integer(jsonProductQuantity)){
 						pid = json_integer_value(jsonProductPid);
@@ -432,7 +427,7 @@ void *thread_products_purchase_routine(void* arg){
 							else statusCode = INTERNAL_SERVER_ERROR; 
 							mlog(tag,
 								PQerrorMessage(conn));	
-						}
+						} else wasAtleastOnePurchaseSuccessful = true;
 						PQclear(queryResult);
 						if (statusCode == INTERNAL_SERVER_ERROR || statusCode == SERVICE_UNAVAILABLE){
 							break;
@@ -441,9 +436,12 @@ void *thread_products_purchase_routine(void* arg){
 						                              
 				}
 			} PQfinish(conn);        
-		}
+		} else statusCode = BAD_REQUEST;
 	} else statusCode = BAD_REQUEST;
-	if (statusCode == UNDEFINED) statusCode = OK;
+	if (statusCode == UNDEFINED) {
+		statusCode = (wasAtleastOnePurchaseSuccessful) ? 
+			OK : BAD_REQUEST;
+	}
 	if (root != NULL) json_decref(root);
 	if (jsonArray != NULL) json_decref(jsonArray);
 	char *body = NULL;
@@ -457,9 +455,7 @@ void *thread_products_purchase_routine(void* arg){
 		 strcat(header, "\r\n");
 	}
 	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
-	pthread_mutex_lock(&stv->fdMutex);	
-	write_response(stv->fd, statusCode, header, body, shouldClose);
-	pthread_mutex_unlock(&stv->fdMutex);
+	attempt_response(tag, stv, statusCode, header, body, shouldClose);
 	free(header);
 	free(body);
 	end_self_thread(hri, hri->stv, hri->tid);
@@ -557,29 +553,26 @@ void *thread_register_routine(void* arg){
 		 strcat(header, "\r\n");
 	}
 	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
-	pthread_mutex_lock(&stv->fdMutex);	
-	write_response(stv->fd, statusCode, header, NULL, shouldClose);
-	pthread_mutex_unlock(&stv->fdMutex);
+	attempt_response(tag, stv, statusCode, header, NULL, shouldClose);
 	free(header);
 	end_self_thread(hri, hri->stv, hri->tid);
 }
 
 void *thread_send_100_continue(void* arg){
+	char *tag;
 	if (arg == NULL){                                         		
-        	mlog("SERVER-100CONTINUE",
+        	mlog(tag,
         		"Passed NULL to thread_send_100_continue. Program will be terminated.");
         	fatal("Unexpected NULL argument while starting thread.");
         }
         handle100continueinput *h100ci = (handle100continueinput*)arg;
 	sharedthreadvariables *stv = h100ci->stv;
 	if (stv == NULL){
-		mlog("SERVER-100CONTINUE",
+		mlog(tag,
 			"Stv is NULL. Program will be terminated.");
 		fatal("Unexpected NULL sharedThreadVariables while staring thread.");
 	}
-	pthread_mutex_lock(&stv->fdMutex);
-	write_response(stv->fd, CONTINUE, "\r\n", NULL, false);
-	pthread_mutex_unlock(&stv->fdMutex);
+	attempt_response(tag, stv, CONTINUE, "\r\n", NULL, false);
 	end_self_thread_100continue(h100ci, h100ci->stv, h100ci->tid);                       
 }
 
@@ -618,6 +611,7 @@ void *thread_handle_connection_routine(void* inputptr){
 	char *arguments = NULL;
 	char *body = NULL;
 	char *response = NULL;
+	char *tag = "SERVER-CONN";
 	
 	bool requiresBody = false;
 	bool isRequestLineParsed = false;
@@ -640,7 +634,7 @@ void *thread_handle_connection_routine(void* inputptr){
 	pthread_t tid100continue = 0;	
 	if (buf == NULL || pathbuf == NULL || methodbuf == NULL || tmppathbuf == NULL 
 	|| headernamebuf == NULL || valuebuf == NULL || isHeaderFuncOutOfMemory == NULL){
-		mlog("SERVER-CONN", 
+		mlog(tag, 
 			"Could not allocate memory for request.");
 		return NULL;
 	}
@@ -652,7 +646,7 @@ void *thread_handle_connection_routine(void* inputptr){
 				int reallocSize = (bytesReadFromNextMessage < BUFSIZE) ? BUFSIZE : bytesReadFromNextMessage;
 				buf = realloc(buf, reallocSize);
 				if (buf == NULL){
-					mlog("SERVER-CONN", 
+					mlog(tag, 
 						"Could not reallocate memory for request.");
 					errCode = SERVICE_UNAVAILABLE;
 					requestStatus = RESPONDING;
@@ -693,7 +687,7 @@ void *thread_handle_connection_routine(void* inputptr){
 				int endLinePtrOffset = endLinePtr - buf;
 				buf = realloc(buf, realUsedSize);
 				if (buf == NULL){
-					mlog("SERVER-CONN", 
+					mlog(tag, 
 						"Could not reallocate memory for request.");
 					errCode = SERVICE_UNAVAILABLE;
 					requestStatus = RESPONDING;
@@ -714,17 +708,26 @@ void *thread_handle_connection_routine(void* inputptr){
 				endLinePtr = buf + endLinePtrOffset;
 				toRead = realUsedSize - byteCount;
 				if (buf == NULL){
-					mlog("SERVER-CONN", 
+					mlog(tag, 
 						"Could not reallocate memory for request.");
 					errCode = SERVICE_UNAVAILABLE;
 				}
 			}
 			bytesJustRead = read(stv->fd, nextReadLocation, toRead);
 			if (bytesJustRead == 0) {
-				mlog("SERVER-CONN", 
-				"Connection closed unexpectedly.");
+				mlog(tag, 
+					"Connection closed unexpectedly.");
 				shouldCloseConnection = true;
+				requestStatus = DONE;
 				continue;
+			} else if (bytesJustRead == -1 && 
+				(errno == EAGAIN || errno == EWOULDBLOCK)){
+				mlog(tag,
+					"Socket read timeout. Attempting to send timeout response.");
+				shouldCloseConnection = true;
+				attempt_error_response(tag, stv, REQUEST_TIMEOUT);
+				requestStatus = DONE;
+				continue;	
 			}
 			byteCount += bytesJustRead;
 			nextReadLocation += bytesJustRead;
@@ -743,7 +746,7 @@ void *thread_handle_connection_routine(void* inputptr){
 				endLinePtr = find_newline(startLinePtr, 
 					(nextReadLocation) - startLinePtr) - 1;
 				if (endLinePtr == NULL){
-					mlog("SERVER-CONN", "Didn't find endline. Rereading...");
+					mlog(tag, "Didn't find endline. Rereading...");
 					break;
 				};  	
 			}
@@ -850,7 +853,7 @@ void *thread_handle_connection_routine(void* inputptr){
 						create_bstnode(headername, headervalue));
 					if (headerRoot == NULL ||
 						 headername == NULL || headervalue == NULL) {
-						mlog("SERVER-CONN", "Could not allocate memory for header.");
+						mlog(tag, "Could not allocate memory for header.");
 						errCode = SERVICE_UNAVAILABLE;
 						break;
 					}
@@ -884,7 +887,7 @@ void *thread_handle_connection_routine(void* inputptr){
 						if (requiresBody){
 							body = malloc(sizeof(char)*(contentLength+1));
 							if (body == NULL) {
-								mlog("SERVER-CONN", 
+								mlog(tag, 
 									"Could not reallocate memory for request.");
 								errCode = SERVICE_UNAVAILABLE;				
 							} else {
@@ -895,7 +898,7 @@ void *thread_handle_connection_routine(void* inputptr){
 						newThreadInput = malloc(sizeof(handlerequestinput));
 						if (newThreadInput == NULL) {
 							free(newThreadInput);
-							mlog("SERVER-CONN", 
+							mlog(tag, 
 									"Could not allocate memory for request.");
 							errCode = SERVICE_UNAVAILABLE;
 						}
@@ -905,7 +908,7 @@ void *thread_handle_connection_routine(void* inputptr){
 								bstargroot = mkargbst(arguments);
 								if (bstargroot == NULL) {
 									free(newThreadInput);
-									mlog("SERVER-CONN",
+									mlog(tag,
 										"Could not allocate memory for request.");
 									errCode = SERVICE_UNAVAILABLE;
 								}
@@ -919,11 +922,9 @@ void *thread_handle_connection_routine(void* inputptr){
 							strlen(errCodeString)+1);
 						strcpy(tmpErrMessageBuf, errLogBegin);
 						strcat(tmpErrMessageBuf, errCodeString);
-						mlog("SERVER-CONN", tmpErrMessageBuf);
+						mlog(tag, tmpErrMessageBuf);
 						shouldCloseConnection = true;
-						pthread_mutex_lock(&stv->fdMutex);
-						write_response(stv->fd, errCode, "Connection: close\r\n\r\n", NULL, true);
-						pthread_mutex_unlock(&stv->fdMutex);
+						attempt_error_response(tag, stv, errCode);
 						free(tmpErrMessageBuf);
 					}
 					else {
@@ -971,7 +972,7 @@ void *thread_handle_connection_routine(void* inputptr){
 	close(stv->fd);
 	free_sharedthreadvariables(stv);
 	free(hci);
-	mlog("SERVER-CONN", "Exiting thread...");
+	mlog(tag, "Exiting thread...");
 }
 
 bool start_thread(void *(*request_handler)(void*), void *input,
@@ -1054,4 +1055,23 @@ void remove_activethread(sharedthreadvariables *stv, pthread_t *tidPtr){
         stv->activeThreads = remove_linkedlistnode
         	(stv->activeThreads, tidPtr);
         pthread_mutex_unlock(&stv->activeThreadsMutex);
+}
+
+void attempt_error_response(char *logtag, sharedthreadvariables *stv, responsecode errCode){
+	attempt_response(logtag, stv, errCode, "Connection: close\r\n\r\n", NULL, true);
+}
+
+void attempt_response(char *logtag, sharedthreadvariables *stv, 
+	responsecode code, char *header, char *body,
+	bool shouldClose){
+	int writeResult;
+	pthread_mutex_lock(&stv->fdMutex);
+	writeResult = write_response(stv->fd, code, header, body, shouldClose);
+	pthread_mutex_unlock(&stv->fdMutex);
+	if (writeResult < 0){
+		bool timedOut = (errno == EAGAIN || errno == EWOULDBLOCK);
+		char *errStr = (timedOut) ? 
+			"Write timed out." : strerror(writeResult);
+		mlog(logtag, errStr);
+	} else mlog(logtag, "Write completed.");
 }

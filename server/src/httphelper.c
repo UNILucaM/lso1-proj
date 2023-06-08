@@ -25,6 +25,7 @@ const char *responsecodestrings[] =
 	"401 Unauthorized",
 	"404 Not Found",
 	"405 Method Not Allowed",
+	"408 Request Timeout",
 	"412 Precondition Failed",
 	"500 Internal Server Error", 
 	"501 Not Implemented", 
@@ -32,7 +33,6 @@ const char *responsecodestrings[] =
 	""};
 
 char *get_header_field_value(char *input, char *headerFieldName, bool *isOutOfMemory){
-	
 	char *str = strstr(input, headerFieldName);
 	if (str == NULL) return NULL;
 	char *copy = malloc(sizeof(char)*(strlen(str)+1));
@@ -292,12 +292,12 @@ bool create_basic_header(char *header, bstnode *headerRoot, int contentLength){
 	tmp[0] = '\0';
 	ptr = chainstrcat(tmp , "Content-Length: ");
 	ptr = chainstrcat(tmp, tmpN);
-	ptr = chainstrcat(tmp, "\r\n");
-	ptr = chainstrcat(tmp, "Date: ");
+	ptr = chainstrcat(tmp, HTTPEOL);
+	ptr = chainstrcat(header, tmp);
 	char *time = get_http_time();
-	ptr = chainstrcat(tmp, time);
-	ptr = chainstrcat(tmp, "\r\n");
-	strcat(header, tmp);
+	ptr = chainstrcat(header, "Date: ");
+	ptr = chainstrcat(header, time);
+	ptr = chainstrcat(header, HTTPEOL);
 	free(time);
 	return shouldClose;
 }
