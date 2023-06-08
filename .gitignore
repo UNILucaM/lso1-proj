@@ -5,6 +5,7 @@
 *.swp
 *.bak
 server/bin/server
+server/bin/images/
 server/CMakeCache.txt
 server/CMakeFiles/
 server/cmake_install.cmake

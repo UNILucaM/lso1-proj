@@ -64,5 +64,5 @@ bool start_thread(void *(*)(void*), void*, sharedthreadvariables*, pthread_t*);
 void end_self_thread(handlerequestinput*, sharedthreadvariables*, pthread_t*);
 void end_self_thread_100continue(handle100continueinput*, sharedthreadvariables*, pthread_t*);
 
-void attempt_response(char*, sharedthreadvariables*, responsecode, char*, char*, bool);
+void attempt_response(char*, sharedthreadvariables*, responsecode, char*, char*, bool, int);
 void attempt_error_response(char*, sharedthreadvariables*, responsecode);

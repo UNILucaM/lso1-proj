@@ -24,9 +24,9 @@
 #include "config.h"
 
 #define SERVERCONFIGFILENAME "config.cfg"
-#define READ_TIMEOUT_S 2
+#define READ_TIMEOUT_S 60
 #define READ_TIMEOUT_MS 0
-#define WRITE_TIMEOUT_S 2
+#define WRITE_TIMEOUT_S 60
 #define WRITE_TIMEOUT_MS 0
 #define QUEUE_LENGTH 100
 #define PORT 8080

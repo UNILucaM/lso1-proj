@@ -150,7 +150,7 @@ bstnode *mkargbst(char *args){
 		argValue = malloc(sizeof(char)*(1+strlen(tokenValue)));
 		if (argName == NULL || argValue == NULL){
 			if (argName != NULL) free(argName);
-			if (argValue == NULL) free(argValue);
+			if (argValue != NULL) free(argValue);
 			return NULL;
 		}
 		strcpy(argName, tokenName);
@@ -182,9 +182,9 @@ void free_bstargs(bstnode *bstargsroot){
 }
 
 int write_response(int fd, responsecode responsecode, 
-	char *header, char *body, bool shouldCloseFileDescriptor){
+	char *header, char *body, bool shouldCloseFileDescriptor, int unterminatedBodySize){
 	int tlen, len;
-	char *response = form_response(responsecode, header, body, &tlen);
+	char *response = form_response(responsecode, header, body, &tlen, unterminatedBodySize);
 	len = tlen;
 	int writtenBytes = 0, totalWrittenBytes = 0;
 	while (len > 0){
@@ -202,8 +202,8 @@ int header_set_connection(bstnode *headerroot, char *header){
 	bstnode *connectionHeader = search(headerroot, "Connection");
 	if (connectionHeader != NULL){
 		if (strcmp((char*)(connectionHeader->value), "keep-alive") == 0){
-					if (header != NULL) strcat(header, "Connection: keep-alive\r\n");
-					return KEEP_ALIVE;
+			if (header != NULL) strcat(header, "Connection: keep-alive\r\n");
+			return KEEP_ALIVE;
 		}
 		else {
 			if (header != NULL) strcat(header, "Connection: close\r\n");
@@ -213,15 +213,18 @@ int header_set_connection(bstnode *headerroot, char *header){
 }
 
 char *form_response(responsecode responsecode, 
-	char *header, char *body, int *ilen){
+	char *header, char *body, int *ilen, int unterminatedBodySize){
 	char *response;
 	char *ptr;
 	const char *responsecodestring = get_response_code_string(responsecode);
 	char c;
 	int len = strlen(HTTPVER) + 2  + strlen(responsecodestring) 
 		+ strlen(HTTPEOL) 
-		+ ((header == NULL) ? 0 : strlen(header))
-		+ ((body == NULL) ? 0 : strlen(body));
+		+ ((header == NULL) ? 0 : strlen(header));
+	if (body != NULL) {
+		len = (unterminatedBodySize == 0) ? 
+		len + strlen(body) : len + unterminatedBodySize;
+	}
 	response = malloc(sizeof(char)*len);
 	if (response == NULL) return NULL;
 	strcpy(response, HTTPVER);
@@ -230,7 +233,10 @@ char *form_response(responsecode responsecode,
 	ptr = chainstrcat(ptr, (char*) responsecodestring);
 	ptr = chainstrcat(ptr, HTTPEOL);
 	if (header != NULL) ptr = chainstrcat(ptr, header);
-	if (body != NULL) ptr = chainstrcat(ptr, body);
+	if (body != NULL) {
+		if (unterminatedBodySize == 0) ptr = chainstrcat(ptr, body);
+		else for(int i = 0; i < unterminatedBodySize; i++) *ptr++ = body[i];
+	}
 	if (ilen != NULL) *ilen = len - 1;
 	return response;
 }

@@ -21,7 +21,7 @@ char *load_image_from_path_timebased(char* path, int *len, time_t *timeToCompare
 	if (path == NULL){
 		if (len != NULL) *len = BAD_ARGS_ERROR;
 	}
-	struct stat *fileProperties = malloc(sizeof(stat));
+	struct stat *fileProperties = malloc(sizeof(struct stat));
 	if (fileProperties == NULL){
 		if (len != NULL) *len = MALLOC_ERROR;
 	}
@@ -61,14 +61,12 @@ char *load_image_from_path_timebased(char* path, int *len, time_t *timeToCompare
 		return NULL;
 	}
 	size_t readResult;
-	if ((readResult = fread(output, 1, imageSize, imageFile)) < imageSize){
-		if (ferror(imageFile) != 0){
-			free(output);
-			if (len != NULL) *len = FILE_ERROR;
-			output = NULL;
-		}
-		else if (len != NULL) *len = (int) readResult;	
-	}
+	if ((readResult = fread(output, 1, imageSize, imageFile)) < imageSize
+		&& ferror(imageFile) != 0){
+		free(output);
+		if (len != NULL) *len = FILE_ERROR;
+		output = NULL;
+	} else if (len != NULL) *len = (int) readResult;
 	free(fileProperties);
 	fclose(imageFile);
 	return output;
@@ -76,9 +74,13 @@ char *load_image_from_path_timebased(char* path, int *len, time_t *timeToCompare
 
 char *get_path_for_size(char *path, imagesize sizeType){                 
 	char *imageSizeString = imagesizestringconversiontable[sizeType];
-	if (strcmp(imageSizeString, imagesizestringconversiontable[MEDIUM]) == 0) 
-			return path;                        
-	char *newPathStart = malloc(sizeof(char)*(strlen(imageSizeString)     
+	char *newPathStart = NULL;
+	if (strcmp(imageSizeString, imagesizestringconversiontable[MEDIUM]) == 0){
+		newPathStart = malloc(sizeof(char)*(strlen(path)+1));
+		if (newPathStart != NULL) strcpy(newPathStart, path);
+		return newPathStart;
+	}
+	newPathStart = malloc(sizeof(char)*(strlen(imageSizeString)     
 			+ strlen(path) + 2));                                    
 	if (newPathStart == NULL) return NULL;  
 	char *newPath = newPathStart;

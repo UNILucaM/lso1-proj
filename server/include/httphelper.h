@@ -120,8 +120,8 @@ const char *get_response_code_string(responsecode);
 int8_t get_flag_value_for_method(supportedmethod);
 /*Costruisce la stringa che rappresenta la risposta HTTP
 identificata dai parametri forniti.*/
-char *form_response(responsecode, char*, char*, int*);
-int write_response(int, responsecode, char*, char*, bool);
+char *form_response(responsecode, char*, char*, int*, int);
+int write_response(int, responsecode, char*, char*, bool, int);
 bstnode *mkroute(char*, void*(*)(void*), bool, int8_t);
 void free_bstroute(bstnode*);
 //NOTA: L'implementazione fornita distrugge la stringa originale.

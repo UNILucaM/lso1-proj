@@ -94,7 +94,7 @@ void *thread_images_routine(void *arg){
 		}
 	}
 	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
-	attempt_response(tag, stv, statusCode, header, image, shouldClose);
+	attempt_response(tag, stv, statusCode, header, image, shouldClose, imageByteSize);
 	if (header != NULL) free(header);
 	if (image != NULL) free(image);
 	end_self_thread(hri, hri->stv, hri->tid);
@@ -215,7 +215,7 @@ void *thread_products_routine(void *arg){
 		 strcat(header, "\r\n");
 	}
 	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
-	attempt_response(tag, stv, statusCode, header, body, shouldClose);
+	attempt_response(tag, stv, statusCode, header, body, shouldClose, 0);
 	if (header != NULL) free(header);
 	if (body != NULL) free(body);
 	end_self_thread(hri, hri->stv, hri->tid);
@@ -316,7 +316,7 @@ void *thread_login_routine(void* arg){
 		 strcat(header, "\r\n");
 	}
 	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
-	attempt_response(tag, stv, statusCode, header, NULL, shouldClose);
+	attempt_response(tag, stv, statusCode, header, NULL, shouldClose, 0);
 	free(header);
 	end_self_thread(hri, hri->stv, hri->tid);
 }
@@ -455,7 +455,7 @@ void *thread_products_purchase_routine(void* arg){
 		 strcat(header, "\r\n");
 	}
 	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
-	attempt_response(tag, stv, statusCode, header, body, shouldClose);
+	attempt_response(tag, stv, statusCode, header, body, shouldClose, 0);
 	free(header);
 	free(body);
 	end_self_thread(hri, hri->stv, hri->tid);
@@ -553,7 +553,7 @@ void *thread_register_routine(void* arg){
 		 strcat(header, "\r\n");
 	}
 	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
-	attempt_response(tag, stv, statusCode, header, NULL, shouldClose);
+	attempt_response(tag, stv, statusCode, header, NULL, shouldClose, 0);
 	free(header);
 	end_self_thread(hri, hri->stv, hri->tid);
 }
@@ -572,7 +572,7 @@ void *thread_send_100_continue(void* arg){
 			"Stv is NULL. Program will be terminated.");
 		fatal("Unexpected NULL sharedThreadVariables while staring thread.");
 	}
-	attempt_response(tag, stv, CONTINUE, "\r\n", NULL, false);
+	attempt_response(tag, stv, CONTINUE, "\r\n", NULL, false, 0);
 	end_self_thread_100continue(h100ci, h100ci->stv, h100ci->tid);                       
 }
 
@@ -580,6 +580,7 @@ void *thread_handle_connection_routine(void* inputptr){
 	handleconnectioninput *hci = ((handleconnectioninput*)inputptr);
 	sharedthreadvariables *stv = malloc(sizeof(sharedthreadvariables));
 	stv->fd = hci->fd;
+	stv->activeThreads = NULL;
 	pthread_mutex_init(&(stv->activeThreadsMutex), NULL);
 	pthread_mutex_init(&(stv->fdMutex), NULL);
  
@@ -723,9 +724,8 @@ void *thread_handle_connection_routine(void* inputptr){
 			} else if (bytesJustRead == -1 && 
 				(errno == EAGAIN || errno == EWOULDBLOCK)){
 				mlog(tag,
-					"Socket read timeout. Attempting to send timeout response.");
+					"Socket read timeout.");
 				shouldCloseConnection = true;
-				attempt_error_response(tag, stv, REQUEST_TIMEOUT);
 				requestStatus = DONE;
 				continue;	
 			}
@@ -896,7 +896,7 @@ void *thread_handle_connection_routine(void* inputptr){
 								body[contentLength] = '\0';
 							}
 						}
-						newThreadInput = malloc(sizeof(handlerequestinput));
+						newThreadInput = calloc(1, sizeof(handlerequestinput));
 						if (newThreadInput == NULL) {
 							free(newThreadInput);
 							mlog(tag, 
@@ -968,7 +968,7 @@ void *thread_handle_connection_routine(void* inputptr){
 			break;
 		}
 		pthread_mutex_unlock(&stv->activeThreadsMutex);
-		sleep(ACTIVETHREADSCHECKDELAY_MS);
+		usleep(ACTIVETHREADSCHECKDELAY_MS);
 	}
 	close(stv->fd);
 	free_sharedthreadvariables(stv);
@@ -988,18 +988,18 @@ bool start_thread(void *(*request_handler)(void*), void *input,
 		return false;	 
 	}
 	int createRetValue;
-	pthread_attr_t *attr;
-	int initRet = pthread_attr_init(attr);
-	if (initRet != 0 || pthread_attr_setdetachstate(attr, PTHREAD_CREATE_DETACHED) != 0){
-		if (initRet == 0) pthread_attr_destroy(attr);
+	pthread_attr_t attr;
+	int initRet = pthread_attr_init(&attr);
+	if (initRet != 0 || pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) != 0){
+		if (initRet == 0) pthread_attr_destroy(&attr);
 		mlog("SERVER-CONN", "Could not set detached state. Aborting thread creation.");
 		remove_activethread(stv, tid);
 		return false;
 	}                                                		
-	createRetValue = pthread_create(tid, attr, request_handler, input);
+	createRetValue = pthread_create(tid, &attr, request_handler, input);
 	if (createRetValue != 0){
 		mlog("SERVER-CONN", strerror(createRetValue));
-		pthread_attr_destroy(attr);
+		pthread_attr_destroy(&attr);
 		remove_activethread(stv, tid);
 		return false;	
 	}
@@ -1059,15 +1059,15 @@ void remove_activethread(sharedthreadvariables *stv, pthread_t *tidPtr){
 }
 
 void attempt_error_response(char *logtag, sharedthreadvariables *stv, responsecode errCode){
-	attempt_response(logtag, stv, errCode, "Connection: close\r\n\r\n", NULL, true);
+	attempt_response(logtag, stv, errCode, "Connection: close\r\n\r\n", NULL, true, 0);
 }
 
 void attempt_response(char *logtag, sharedthreadvariables *stv, 
 	responsecode code, char *header, char *body,
-	bool shouldClose){
+	bool shouldClose, int unterminatedBodyLength){
 	int writeResult;
 	pthread_mutex_lock(&stv->fdMutex);
-	writeResult = write_response(stv->fd, code, header, body, shouldClose);
+	writeResult = write_response(stv->fd, code, header, body, shouldClose, unterminatedBodyLength);
 	pthread_mutex_unlock(&stv->fdMutex);
 	if (writeResult < 0){
 		bool timedOut = (errno == EAGAIN || errno == EWOULDBLOCK);
