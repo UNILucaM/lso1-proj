@@ -142,4 +142,4 @@ char *get_http_time();
 come Connection e Content-Length.
 Il valore di ritorno riflette l'header Connection 
 (se è vero bisogna chiudere la connessione).*/
-bool create_basic_header(char*, bstnode*);
+bool create_basic_header(char*, bstnode*, int);

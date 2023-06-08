@@ -277,7 +277,7 @@ char *get_http_time(){
 }
 
 bool create_basic_header(char *header, bstnode *headerRoot, int contentLength){
-	if (header != NULL) return;
+	if (header == NULL) return false;
 	header[0] = '\0';
 	bool shouldClose;
 	int connectionHeader = NOT_FOUND;

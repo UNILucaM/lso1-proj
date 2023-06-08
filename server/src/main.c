@@ -1,3 +1,4 @@
+#define _XOPEN_SOURCE
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -42,17 +43,21 @@ bstnode *init_routes(){
 int main(int argc, char **argv){
 	char *fileName = NULL;
 	int c;
-        while ((c = getopt(argc, argv, "f::")) != -1){
+        while ((c = getopt(argc, argv, "f:")) != -1){
         	switch (c){
         		//filename opt
         		case 'f':
-        			fileName = strdup(optarg);
+				if (optarg != NULL){
+					fileName = malloc(sizeof(char)*(strlen(optarg)+1));
+					if (fileName != NULL) strcpy(fileName, optarg);
+				}
         			break;
         	}	
         }	
 	serverConfig = load_serverconfig_from_file
 		(((fileName == NULL) ? SERVERCONFIGFILENAME : fileName));
 	if (serverConfig == NULL){
+		if (fileName != NULL) free(fileName);
 		fatal("Unexpected: cannot load config");
 	}
 	if (serverConfig->dbName == NULL ||
@@ -60,6 +65,7 @@ int main(int argc, char **argv){
 		serverConfig->dbPassword == NULL ||
 		serverConfig->dbAddr == NULL)
 			fatal("Could not read one or more necessary config parameters.");
+	if (fileName != NULL) free(fileName);
 	int port = (serverConfig->port == PORT_UNSPECIFIED) ? PORT : serverConfig->port;
 	server = create_server(port, QUEUE_LENGTH);
 	if (server == NULL){

@@ -2,6 +2,8 @@
 #include <limits.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
 
 #include "mimage.h"
 
@@ -11,17 +13,15 @@ const char *imageloaderrorstrings[] = {
 	"Could not allocate memory.",
 	"Could not obtain information from stat() call.",
 	"Bad arguments passed to function.",
-	"Error opening or processing function.",
+	"Error opening or processing file.",
 	"File is too large to open for this implementation."
-}
+};
 	
-	
-
-char *load_image_from_path(char* path, int *len, time_t *timeToCompareWith, bool isIfModifiedSinceMode){
+char *load_image_from_path_timebased(char* path, int *len, time_t *timeToCompareWith, bool isIfModifiedSinceMode){
 	if (path == NULL){
 		if (len != NULL) *len = BAD_ARGS_ERROR;
 	}
-	stat *fileProperties = malloc(sizeof(stat));
+	struct stat *fileProperties = malloc(sizeof(stat));
 	if (fileProperties == NULL){
 		if (len != NULL) *len = MALLOC_ERROR;
 	}
@@ -30,18 +30,18 @@ char *load_image_from_path(char* path, int *len, time_t *timeToCompareWith, bool
 		if (len != NULL) *len = STAT_ERROR;
 		return NULL;
 	}
-	off_t imageSize = stat->st_size;
+	off_t imageSize = fileProperties->st_size;
 	if (imageSize > INT_MAX){
 		free(fileProperties);
 		if (len != NULL) *len = FILE_TOO_LARGE_ERROR;
 		return NULL;
 	}
-	time_t lastModified = stat->st_mtime;
-	if (timeToComparewith != NULL){
+	time_t lastModified = fileProperties->st_mtime;
+	if (timeToCompareWith != NULL){
 		double comparisonResult = difftime
 			(lastModified, *timeToCompareWith);
-		if ((isModifiedSinceMode && comparisonResult < 0) || 
-			(!isModifiedSinceMode && comparisonResult > 0){
+		if ((isIfModifiedSinceMode && comparisonResult < 0) || 
+			(!isIfModifiedSinceMode && comparisonResult > 0)){
 			*len = NO_NEED_TO_LOAD;
 			free(fileProperties);
 			return NULL;

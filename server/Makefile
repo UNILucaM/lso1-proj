@@ -297,6 +297,30 @@ src/main.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/main.c.s
 .PHONY : src/main.c.s
 
+src/mimage.o: src/mimage.c.o
+.PHONY : src/mimage.o
+
+# target to build an object file
+src/mimage.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/mimage.c.o
+.PHONY : src/mimage.c.o
+
+src/mimage.i: src/mimage.c.i
+.PHONY : src/mimage.i
+
+# target to preprocess a source file
+src/mimage.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/mimage.c.i
+.PHONY : src/mimage.c.i
+
+src/mimage.s: src/mimage.c.s
+.PHONY : src/mimage.s
+
+# target to generate assembly for a file
+src/mimage.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/server.dir/build.make CMakeFiles/server.dir/src/mimage.c.s
+.PHONY : src/mimage.c.s
+
 src/mlog.o: src/mlog.c.o
 .PHONY : src/mlog.o
 
@@ -423,6 +447,9 @@ help:
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"
+	@echo "... src/mimage.o"
+	@echo "... src/mimage.i"
+	@echo "... src/mimage.s"
 	@echo "... src/mlog.o"
 	@echo "... src/mlog.i"
 	@echo "... src/mlog.s"

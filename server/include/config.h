@@ -8,7 +8,7 @@ typedef struct serverconfig{
 	char *dbUsername;
 	char *dbPassword;
 	char *dbAddr;
-	char *imagesPath;
+	char *imagePath;
 	int port;
 } serverconfig;
 #endif 

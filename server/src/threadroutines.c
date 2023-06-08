@@ -6,6 +6,7 @@
 #include "dbconn.h"
 #include "errorhandling.h"
 #include "strutil.h"
+#include "mimage.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,7 +35,7 @@ void *thread_images_routine(void *arg){
 	responsecode statusCode = UNDEFINED;
 	bstnode *argRoot = hri->arguments;
 	bstnode *headerRoot = hri->headers;
-	serverconfig sc = hri->serverConfig;
+	serverconfig *sc = hri->serverConfig;
 	bstnode *genericNode; 
 	time_t *headerLastModified = NULL;
 	bool isIfModifiedSince = false;
@@ -42,13 +43,14 @@ void *thread_images_routine(void *arg){
 	if (genericNode == NULL) genericNode = search(headerRoot, "If-Unmodified-Since");
 	else isIfModifiedSince = true;
 	if (genericNode != NULL){
-		headerLastModified = get_http_time_from_str((char*)genericNode->value));
+		headerLastModified = get_http_time_from_str((char*)genericNode->value);
 	}
 	char *imageName = NULL;
 	char *tmpImageName = NULL;
 	char *baseImagePath = ((sc->imagePath == NULL) ? IMAGES_PATH : sc->imagePath);
 	char *image;
 	time_t lastModified;
+	int imageByteSize;
 	imagesize imgSize = SIZE_UNDEFINED;
 	genericNode = search(argRoot, "imagename");
 	if (genericNode == NULL) statusCode = BAD_REQUEST;
@@ -67,9 +69,10 @@ void *thread_images_routine(void *arg){
 			else {
 				strcpy(imageName, baseImagePath);
 				strcat(imageName, tmpImageName);
-				image = load_image_from_path(imageName, &imageByteSize, headerLastModified, isIfModifiedSince);
+				image = load_image_from_path_timebased
+					(imageName, &imageByteSize, headerLastModified, isIfModifiedSince);
 				if (image == NULL && imageByteSize != NO_NEED_TO_LOAD){
-					mlog(tag, get_image_load_error(imageByteSize));
+					mlog(tag, (char*) get_image_load_error_string(imageByteSize));
 					statusCode = (imageByteSize == STAT_ERROR) ? 
 						NOT_FOUND : INTERNAL_SERVER_ERROR;
 				} else statusCode = OK;
@@ -77,7 +80,7 @@ void *thread_images_routine(void *arg){
 			}
 		}
 	}
-	if (tmpImageSize != NULL) free(tmpImageSize);
+	if (tmpImageName != NULL) free(tmpImageName);
 	if (headerLastModified != NULL) free(headerLastModified);
 	char *header = malloc(sizeof(char)*BUFSIZE);
 	int contentLength = (imageByteSize < 0) ? 0 : imageByteSize;
@@ -123,6 +126,7 @@ void *thread_products_routine(void *arg){
 	errBuf[0] = '\0';
 	bstnode *argroot = hri->arguments;
 	bstnode *argNode;
+	bstnode *headerRoot = hri->headers;
 	int type = PRODUCT_TYPE_INVALID;
 	char *username;
 	char *body = NULL;
@@ -363,6 +367,8 @@ void *thread_products_purchase_routine(void* arg){
 			}
 		}
 	}
+	serverconfig *sc = hri->serverConfig;
+	bstnode *headerRoot = hri->headers;
 	PGconn *conn = get_db_conn
 		(sc->dbName, sc->dbUsername, sc->dbPassword, sc->dbAddr, errBuf);
 	if (conn == NULL || errBuf[0] != '\0'){                                                                                 
@@ -392,14 +398,14 @@ void *thread_products_purchase_routine(void* arg){
 			char strQuantity[11];
 			const char *params[] = {requestUsername, strPid, strQuantity};
 			serverconfig *sc = hri->serverConfig;			
-			json_array_foreach(array, index, jsonProduct) {
+			json_array_foreach(jsonArray, index, jsonProduct) {
 				if (json_is_object(jsonProduct)){
 					jsonProductPid = json_object_get(jsonProduct, "pid");
 					jsonProductQuantity = json_object_get(jsonProductQuantity, "quantity");
 					if (json_is_integer(jsonProductPid) 
 						&& json_is_integer(jsonProductQuantity)){
-						pid = json_integer_value("pid");
-						quantity = json_integer_value("quantity");
+						pid = json_integer_value(jsonProductPid);
+						quantity = json_integer_value(jsonProductQuantity);
 						sprintf(strPid, "%d", pid);
 						sprintf(strQuantity, "%d", quantity);
 						PGresult *queryResult =                                                                                           
@@ -456,7 +462,7 @@ void *thread_products_purchase_routine(void* arg){
 	pthread_mutex_unlock(&stv->fdMutex);
 	free(header);
 	free(body);
-    end_self_thread(hri, hri->stv, hri->tid);
+	end_self_thread(hri, hri->stv, hri->tid);
 }
 
 void *thread_register_routine(void* arg){
@@ -547,7 +553,7 @@ void *thread_register_routine(void* arg){
 	int contentLength = 0;
 	bool shouldClose = false;
 	if (header != NULL){
-		 shouldClose = create_basic_header(header, headerRoot, contentLength);
+		 shouldClose = create_basic_header(header, hri->headers, contentLength);
 		 strcat(header, "\r\n");
 	}
 	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
@@ -585,7 +591,7 @@ void *thread_handle_connection_routine(void* inputptr){
 	pthread_mutex_init(&(stv->fdMutex), NULL);
  
 	int byteCount = 0;
-    int bytesJustRead = 0;
+    	int bytesJustRead = 0;
 	int toRead = BUFSIZE;
 	int realUsedSize = BUFSIZE;
 	int contentLength = 0;
@@ -603,6 +609,7 @@ void *thread_handle_connection_routine(void* inputptr){
 	char *tmppathbuf = malloc(sizeof(char)*PATHBUFSIZE);
 	char *headernamebuf = malloc(sizeof(char)*HTTPMAXHEADERNAMELENGTH);
 	char *valuebuf = malloc(sizeof(char)*VALUEBUFSIZE);
+	char *versionbuf = malloc(sizeof(char)*VERSIONBUFSIZE);
 	char *nextStartForMemmove;
 	char *startLinePtr = buf;
 	char *endLinePtr = NULL;
@@ -619,6 +626,7 @@ void *thread_handle_connection_routine(void* inputptr){
 	bool isDataChunkEncoded = false;
 	bool shouldSend100Continue = false;
 	bool shouldCloseConnection = false;
+	bool isHTTP1Point0 = false;
 	bool *isHeaderFuncOutOfMemory = malloc(sizeof(bool));
 	
 	supportedmethod method;
@@ -672,6 +680,7 @@ void *thread_handle_connection_routine(void* inputptr){
 				isHostParsed = false;
 				isDataChunkEncoded = false;
 				shouldSend100Continue = false;
+				isHTTP1Point0 = false;
 				requestStatus = PARSING_REQUEST_LINE;
 				headerRoot = NULL;
 				bstargroot = NULL;
@@ -740,10 +749,11 @@ void *thread_handle_connection_routine(void* inputptr){
 			}
 			switch(requestStatus){
 				case PARSING_REQUEST_LINE:
-					if (sscanf(startLinePtr, "%s %s ", methodbuf, pathbuf) != 2) {
+					if (sscanf(startLinePtr, "%s %s %s", methodbuf, pathbuf, versionbuf) != 3) {
 						errCode = BAD_REQUEST; 
 						break;
 					}
+					if (strcmp(versionbuf, "HTTP/1.0") == 0) isHTTP1Point0 = true;
 					requestStatus = PARSING_HEADERS;
 					method = convert_string_to_supportedmethod_enum(methodbuf);
 					if (method == UNSUPPORTED) {errCode = NOT_IMPLEMENTED; break;}
@@ -781,7 +791,7 @@ void *thread_handle_connection_routine(void* inputptr){
 					if (*startLinePtr == '\r' && *(startLinePtr+1) == '\n'){
 						//L'header (o il trailer) è terminato
 						//Se non abbiamo trovato l'header host, la richiesta non è valida secondo HTTP 1.1
-						if ((!isHostParsed && !isDataChunkEncoded) ||
+						if ((!isHostParsed && !isDataChunkEncoded && !isHTTP1Point0) ||
 							(!isHostParsed && requestStatus == PARSING_TRAILERS)) 
 							{errCode = BAD_REQUEST; break;}
 						if (!requiresBody) {

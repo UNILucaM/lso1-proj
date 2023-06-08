@@ -15,6 +15,7 @@ serverconfig *load_serverconfig_from_file(char *filePath){
 	serverconfig->dbUsername = NULL;
 	serverconfig->dbPassword = NULL;
 	serverconfig->dbAddr = NULL;
+	serverconfig->imagePath = NULL;
 	serverconfig->port = PORT_UNSPECIFIED;
 	bool hasFailed = false;
 	char *parameternamebuf = malloc(sizeof(char)*LINEPTRBUFSIZE/2);
@@ -72,7 +73,7 @@ serverconfig *load_serverconfig_from_file(char *filePath){
 				}
 				strcpy(serverconfig->dbAddr, parametervaluebuf);
 			} else if (strcmp(parameternamebuf, "imagepath") == 0){
-				serverConfig->imagePath =
+				serverconfig->imagePath =
 					malloc((strlen(parametervaluebuf)+1)*sizeof(char));
 				if (serverconfig->imagePath == NULL){
 					hasFailed = true;
@@ -96,13 +97,13 @@ serverconfig *load_serverconfig_from_file(char *filePath){
 void free_serverconfig(serverconfig *serverConfig){
 	if (serverConfig->dbName != NULL)
 		free(serverConfig->dbName);    	
-    if (serverConfig->dbUsername != NULL)
+	if (serverConfig->dbUsername != NULL)
 		free(serverConfig->dbUsername);
-    if (serverConfig->dPassword != NULL)
+	if (serverConfig->dbPassword != NULL)
 		free(serverConfig->dbPassword);
 	if (serverConfig->dbAddr != NULL)
 		free(serverConfig->dbAddr);
 	if (serverConfig->imagePath != NULL)
 		free(serverConfig->imagePath);
-    free(serverConfig);
+    	free(serverConfig);
 }
