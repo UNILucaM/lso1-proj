@@ -35,15 +35,15 @@ char *get_header_field_value(char *input, char *headerFieldName, bool *isOutOfMe
 	
 	char *str = strstr(input, headerFieldName);
 	if (str == NULL) return NULL;
-	char *copy = malloc(strlen(str)+1);
+	char *copy = malloc(sizeof(char)*(strlen(str)+1));
 	if (copy == NULL){
 		*isOutOfMemory = true;
 		return NULL;
 	}
 	strcpy(copy, str);
 	strtok(copy, " ");
-	char* token = strtok(copy, "\r\n");
-	char* returntoken = malloc(strlen(token)+1);
+	char *token = strtok(copy, "\r\n");
+	char *returntoken = malloc(sizeof(char)*(strlen(token)+1));
 	if (returntoken == NULL){
 		*isOutOfMemory = true;
 		return NULL;
