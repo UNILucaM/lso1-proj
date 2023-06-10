@@ -84,6 +84,7 @@ char *make_json_array_from_productqueryresult(PGresult *res, char *errBuf, bool 
 				case PRODUCT_COLUMN_PRODUCTNAME:
 				case PRODUCT_COLUMN_PRODUCTTYPEVAR:
 				case PRODUCT_COLUMN_IMAGEPATH:
+				case PRODUCT_COLUMN_INGREDIENTLIST:
 					jsonTmp = json_string(value);
 					break;
 				case PRODUCT_COLUMN_PRICE:
