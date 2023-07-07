@@ -1,6 +1,6 @@
 #include <libpq-fe.h>
 
-#define REGISTERSTATEMENT "INSERT IN Account VALUES($1, $2);"
+#define REGISTERSTATEMENT "INSERT INTO Account VALUES($1, $2);"
 #define LOGINSTATEMENT "SELECT * FROM Account WHERE username = $1 AND password = $2;"
 #define GETPRODUCTCOCKTAILSTATEMENT "SELECT * FROM Product WHERE productTypeVar = 'Cocktail';"
 #define GETPRODUCTFRULLATOSTATEMENT "SELECT * FROM Product WHERE productTypeVar = 'Frullato';"

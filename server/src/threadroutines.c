@@ -445,7 +445,7 @@ void *thread_products_purchase_routine(void* arg){
 	if (root != NULL) json_decref(root);
 	if (jsonArray != NULL) json_decref(jsonArray);
 	char *body = NULL;
-	if (json_array_size(jsonUnpurchasedArray) != 0) body = json_dumps(jsonUnpurchasedArray, 0);
+	body = json_dumps(jsonUnpurchasedArray, 0);
 	json_decref(jsonUnpurchasedArray);
 	char *header = malloc(sizeof(char)*BUFSIZE);
 	int contentLength = (body == NULL) ? 0 : (int) strlen(body);
@@ -677,6 +677,8 @@ void *thread_handle_connection_routine(void* inputptr){
 				shouldSend100Continue = false;
 				isHTTP1Point0 = false;
 				requestStatus = PARSING_REQUEST_LINE;
+				body = NULL;
+				arguments = NULL;
 				headerRoot = NULL;
 				bstargroot = NULL;
 			}
@@ -729,6 +731,7 @@ void *thread_handle_connection_routine(void* inputptr){
 				requestStatus = DONE;
 				continue;	
 			}
+			mlog("SERVER-CONNECTION-DEBUG", nextReadLocation);
 			byteCount += bytesJustRead;
 			nextReadLocation += bytesJustRead;
 			if (requestStatus == OBTAINING_BODY){
@@ -830,7 +833,7 @@ void *thread_handle_connection_routine(void* inputptr){
 						requestStatus = OBTAINING_BODY;
 						break;
 					}						
-					if (sscanf(startLinePtr, "%[^:]: %s\r", headernamebuf, valuebuf) != 2)
+					if (sscanf(startLinePtr, "%[^:]: %[^\t\r\n]", headernamebuf, valuebuf) != 2)
 						{errCode = BAD_REQUEST; break;}
 					if (strcmp(headernamebuf, "Host") == 0){
 						isHostParsed = true;

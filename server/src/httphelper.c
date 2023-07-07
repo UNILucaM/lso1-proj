@@ -1,10 +1,12 @@
 #define _XOPEN_SOURCE
 #include <string.h>
+#include <strings.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>   
 #include <stdio.h>
 #include <time.h>
+#include <mlog.h>
 
 #include "httphelper.h"
 #include "bstnode.h"
@@ -201,7 +203,7 @@ int header_set_connection(bstnode *headerroot, char *header){
 	if (headerroot == NULL) return BAD_ARGS;
 	bstnode *connectionHeader = search(headerroot, "Connection");
 	if (connectionHeader != NULL){
-		if (strcmp((char*)(connectionHeader->value), "keep-alive") == 0){
+		if (strcasecmp((char*)(connectionHeader->value), "keep-alive") == 0){
 			if (header != NULL) strcat(header, "Connection: keep-alive\r\n");
 			return KEEP_ALIVE;
 		}
@@ -247,9 +249,9 @@ C'è un particolare conflitto quindi con strptime, che invece tratta la stringa
 del formato %Y come nel secolo scorso se rappresenta un numero da 69 a 99.
 Questo conflitto viene risolto con un check nella funzione.*/
 time_t *get_http_time_from_str(char* str){
-	if (str == NULL) return NULL;
-	time_t *mtime = malloc(sizeof(time_t));
-	if (mtime == NULL) return NULL;
+    if (str == NULL) return NULL;
+    time_t *mtime = malloc(sizeof(time_t));
+    if (mtime == NULL) return NULL;
     char *fPtr = HTTP_DATE_FORMAT_1;
     int format = 1;
     struct tm mtm;
@@ -257,7 +259,7 @@ time_t *get_http_time_from_str(char* str){
         format++;
         if (format == 2) fPtr = HTTP_DATE_FORMAT_2;
         else if (format == 3) fPtr = HTTP_DATE_FORMAT_3;
-    } 
+    }
     if (format == 4) return NULL;
     else {
         if(format == 2){

@@ -37,7 +37,7 @@ serverconfig *serverConfig = NULL;
 
 bstnode *init_routes(){
 	return init_bst(
-		mkroute("/register", &thread_register_routine, true, PUT_FLAG),
+		mkroute("/register", &thread_register_routine, true, POST_FLAG),
 		mkroute("/login", &thread_login_routine, true, POST_FLAG),
 		mkroute("/products", &thread_products_routine, false, GET_FLAG),
 		mkroute("/products/purchase", &thread_products_purchase_routine, true, POST_FLAG),
