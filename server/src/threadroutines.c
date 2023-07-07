@@ -432,8 +432,7 @@ void *thread_products_purchase_routine(void* arg){
 						if (statusCode == INTERNAL_SERVER_ERROR || statusCode == SERVICE_UNAVAILABLE){
 							break;
 						}
-					}
-						                              
+					}                             
 				}
 			} PQfinish(conn);        
 		} else statusCode = BAD_REQUEST;
@@ -585,7 +584,7 @@ void *thread_handle_connection_routine(void* inputptr){
 	pthread_mutex_init(&(stv->fdMutex), NULL);
  
 	int byteCount = 0;
-    	int bytesJustRead = 0;
+    int bytesJustRead = 0;
 	int toRead = BUFSIZE;
 	int realUsedSize = BUFSIZE;
 	int contentLength = 0;

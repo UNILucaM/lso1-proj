@@ -39,6 +39,7 @@ CREATE TABLE Product(
 	price float NOT NULL,
 	productTypeVar productType NOT NULL,
 	imagePath text,
+	ingredientList text NOT NULL DEFAULT "",
 	CONSTRAINT PRODUCT_PK PRIMARY KEY(pid),
 	CONSTRAINT PRODUCT_PRICE_FORCE_TWO_DECIMAL_DIGITS CHECK (price = round(price::numeric, 2))
 );
@@ -62,7 +63,34 @@ CREATE TABLE IngredientInProduct(
 	CONSTRAINT INGREDIENTINPRODUCT_FK_INGREDIENT FOREIGN KEY (ingredientName) REFERENCES Ingredient(ingredientName),
 	CONSTRAINT INGREDIENTINPRODUCT_FK_PRODUCT FOREIGN KEY (productPid) REFERENCES Product(pid),
 	CONSTRAINT INGREDIENTINPRODUCT_QUANTITY CHECK (quantityNeededInRecipe >= 0)
-);	 	
+);
+
+CREATE OR REPLACE FUNCTION update_product_ingredientList()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+	newIngredientList text;
+BEGIN
+	SELECT ingredientList INTO newIngredientList 
+	FROM Product FOR NO KEY UPDATE
+	WHERE pid = NEW.productPid;
+	IF (newIngredientList = "") THEN
+		newIngredientList = NEW.productName;
+	ELSE
+		newIngredientList = newIngredientList || ", " || NEW.productName;
+	END IF;
+	UPDATE Product 
+	SET ingredientList = newIngredientList
+	WHERE pid = NEW.productPid;
+	RETURN NEW;
+END
+$$;
+
+CREATE TRIGGER ADD_INGREDIENTINPRODUCT_TO_INGREDIENT_LIST
+AFTER INSERT ON IngredientInProduct
+FOR EACH ROW
+EXECUTE PROCEDURE update_product_ingredientList();
 
 /*
 Tabella Sale. Rappresenta gli acquisti di un prodotto specifico da parte di un utente.
@@ -200,7 +228,7 @@ lo stesso tipo di bevanda.
 CREATE OR REPLACE FUNCTION get_products_with_suggestion_score(username text)
 RETURNS table
 (pid integer, productName text, price float, productTypeVar productType,
-	imagePath text,  suggestionScore integer)
+	imagePath text, ingredientList text, suggestionScore integer)
 LANGUAGE plpgsql
 AS $$
 #variable_conflict use_variable
@@ -244,7 +272,7 @@ BEGIN
 		hashmap[productTypeCursorRow.productTypeText] = productTypeCursorRow.timesSold;
 	END LOOP;
 	close productTypeCursor;
-	FOR pid, productName, price, productTypeVar, imagePath, suggestionScore IN
+	FOR pid, productName, price, productTypeVar, imagePath, ingredientList, suggestionScore IN
 		SELECT *, 0 as score
 		FROM Product
 	LOOP
