@@ -19,5 +19,7 @@
     <color name="silver">#f5f5f5</color>
     <color name="yellow">#FFFF00</color>
     <color name="drink_orange">#FF9000</color>
+    <color name="drink_orange_secondary">#CC6000</color>
     <color name="drink_light_grey">#555555</color>
+    <color name="drink_login">#FFB020</color>
 </resources>

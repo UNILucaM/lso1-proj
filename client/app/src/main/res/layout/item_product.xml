@@ -3,6 +3,9 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:card_view="http://schemas.android.com/tools"
     android:layout_width="match_parent"
+    android:descendantFocusability="beforeDescendants"
+    android:focusable="true"
+    android:focusableInTouchMode="true"
     android:layout_height="300dp"
     android:layout_marginHorizontal="20dp"
     android:layout_marginVertical="8dp"
@@ -11,17 +14,17 @@
     app:layout_constraintStart_toStartOf="parent"
     app:layout_constraintTop_toTopOf="parent"
     card_view:cardUseCompatPadding="true"
-    android:id="@+id/CardView">
+    android:id="@+id/cardViewProduct">
 
 
     <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/constraintLayoutPost"
+        android:id="@+id/constraintLayoutProduct"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         >
 
         <androidx.constraintlayout.utils.widget.ImageFilterView
-            android:id="@+id/ivProfile"
+            android:id="@+id/productImage"
             android:layout_width="100dp"
             android:layout_height="100dp"
             android:layout_marginStart="10dp"
@@ -42,7 +45,7 @@
             android:textColor="@color/black"
             android:textSize="28sp"
             android:textStyle="bold"
-            app:layout_constraintStart_toEndOf="@id/ivProfile"
+            app:layout_constraintStart_toEndOf="@id/productImage"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"/>
 
@@ -56,7 +59,7 @@
             android:textColor="@color/drink_light_grey"
             android:textSize="18sp"
             app:layout_constraintBottom_toTopOf="@id/editTextQuantity"
-            app:layout_constraintStart_toEndOf="@id/ivProfile"
+            app:layout_constraintStart_toEndOf="@id/productImage"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toBottomOf="@id/textViewProductName" />
 
