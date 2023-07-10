@@ -91,6 +91,9 @@ void *thread_images_routine(void *arg){
 		 if (imageByteSize == NO_NEED_TO_LOAD){
 			statusCode = (isIfModifiedSince) ? 
 				NOT_MODIFIED : PRECONDITION_FAILED;
+			mlog(tag, (statusCode == NOT_MODIFIED) ? 
+				"Image not modified. No image will be sent." 
+				: "Precondition failed. No image will be sent.");
 		}
 	}
 	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
@@ -151,7 +154,6 @@ void *thread_products_routine(void *arg){
 	}
 	if (type == PRODUCT_TYPE_INVALID) statusCode = BAD_REQUEST;
 	else {
-		//database
 		serverconfig *sc = hri->serverConfig;  
 		PGconn *conn = get_db_conn
 			(sc->dbName, sc->dbUsername, sc->dbPassword, sc->dbAddr, errBuf);    
@@ -583,34 +585,47 @@ void *thread_handle_connection_routine(void* inputptr){
 	pthread_mutex_init(&(stv->activeThreadsMutex), NULL);
 	pthread_mutex_init(&(stv->fdMutex), NULL);
  
+	//byte letti in totale dalla richiesta
 	int byteCount = 0;
-    int bytesJustRead = 0;
+	int bytesJustRead = 0;
+	//byte da leggere ad ogni read
 	int toRead = BUFSIZE;
+	//dimensione corrente del buffer 
 	int realUsedSize = BUFSIZE;
 	int contentLength = 0;
 	int totalChunkedDataSize = 0;
+	//Nel trasferimento "chunked" ogni chunk ha una dimensione.
+	//Questa è la variabile dove la dimensione viene immagazzinata.
 	int chunkedDataSize;
 	
 	size_t bodyStartOffset;
+	//Offset di fine richiesta
 	size_t messageEndOffset;
+	//Offset di fine linea della linea corrente
 	size_t endLinePtrOffset;
 
+	//buffer per leggere le richieste
 	char *buf = malloc(sizeof(char)*toRead);
 	char *nextReadLocation = buf;
 	char *methodbuf = malloc(sizeof(char)*METHODBUFSIZE);
 	char *pathbuf = malloc(sizeof(char)*PATHBUFSIZE);
+	//buffer su cui viene manipolata la path per estrarne gli argomenti
 	char *tmppathbuf = malloc(sizeof(char)*PATHBUFSIZE);
 	char *headernamebuf = malloc(sizeof(char)*HTTPMAXHEADERNAMELENGTH);
+	//buffer dove viene memorizzato il valore di un header
 	char *valuebuf = malloc(sizeof(char)*VALUEBUFSIZE);
+	//buffer dove viene memorizzata la versione di HTTP
 	char *versionbuf = malloc(sizeof(char)*VERSIONBUFSIZE);
+	//Usato per il trasferimento chunked.
 	char *nextStartForMemmove;
 	char *startLinePtr = buf;
 	char *endLinePtr = NULL;
 	char *pathptr = NULL;
+	//Usato nella manipolazione del path per estrarre gli argomenti.
 	char *token = NULL;
 	char *arguments = NULL;
 	char *body = NULL;
-	char *response = NULL;
+	//Tag dei log
 	char *tag = "SERVER-CONN";
 	
 	bool requiresBody = false;
@@ -631,7 +646,6 @@ void *thread_handle_connection_routine(void* inputptr){
 	responsecode errCode = UNDEFINED;
 	requeststatus requestStatus = PARSING_REQUEST_LINE;
 	serverconfig *serverConfig = hci->serverConfig;
-	pthread_t tid100continue = 0;	
 	if (buf == NULL || pathbuf == NULL || methodbuf == NULL || tmppathbuf == NULL 
 	|| headernamebuf == NULL || valuebuf == NULL || isHeaderFuncOutOfMemory == NULL){
 		mlog(tag, 
@@ -640,8 +654,36 @@ void *thread_handle_connection_routine(void* inputptr){
 	}
 	memset(buf, 0, BUFSIZE);
 	while(requestStatus != DONE || shouldCloseConnection == false){
+		/*Questo codice viene eseguito alla fine di ogni richiesta 
+		se shouldCloseConnection == false.
+		Si divide in tre parti:
+		1. Spostamento dei dati da nuove richieste a inizio buffer.
+		2. Reimpostazione delle variabili per la prossima richiesta.
+		3. Se il buffer è stato modificato in dimensioni, si realloca il buffer per essere
+		o di dimensione originale o della dimensione dei nuovi dati letti, in base a quale dei due sia maggiore.*/
 		if(requestStatus == DONE){
 			size_t bytesReadFromNextMessage = (size_t) ((byteCount - 1) - messageEndOffset);
+			if (bytesReadFromNextMessage > 0) memmove(buf, buf+messageEndOffset+1, bytesReadFromNextMessage);
+			else bytesReadFromNextMessage = 0;
+			memset(buf+bytesReadFromNextMessage, 0, realUsedSize - bytesReadFromNextMessage);
+			totalChunkedDataSize = 0;
+			toRead = realUsedSize;
+			startLinePtr = buf;
+			endLinePtr = NULL;
+			nextReadLocation = buf + bytesReadFromNextMessage;
+			byteCount = bytesReadFromNextMessage;
+			requiresBody = false;
+			isRequestLineParsed = false;
+			isContentLengthParsed = false;
+			isHostParsed = false;
+			isDataChunkEncoded = false;
+			shouldSend100Continue = false;
+			isHTTP1Point0 = false;
+			requestStatus = PARSING_REQUEST_LINE;
+			body = NULL;
+			arguments = NULL;
+			headerRoot = NULL;
+			bstargroot = NULL;
 			if (realUsedSize != BUFSIZE){
 				int reallocSize = (bytesReadFromNextMessage < BUFSIZE) ? BUFSIZE : bytesReadFromNextMessage;
 				buf = realloc(buf, reallocSize);
@@ -657,32 +699,12 @@ void *thread_handle_connection_routine(void* inputptr){
 				}
 				realUsedSize = reallocSize;
 			}
-			
-			if (buf != NULL){
-				if (bytesReadFromNextMessage > 0) memmove(buf, buf+messageEndOffset+1, bytesReadFromNextMessage);
-				else bytesReadFromNextMessage = 0;
-				memset(buf+bytesReadFromNextMessage, 0, realUsedSize - bytesReadFromNextMessage);
-				totalChunkedDataSize = 0;
-				toRead = realUsedSize;
-				startLinePtr = buf;
-				endLinePtr = NULL;
-				nextReadLocation = buf + bytesReadFromNextMessage;
-				byteCount = bytesReadFromNextMessage;
-				requiresBody = false;
-				isRequestLineParsed = false;
-				isContentLengthParsed = false;
-				isHostParsed = false;
-				isDataChunkEncoded = false;
-				shouldSend100Continue = false;
-				isHTTP1Point0 = false;
-				requestStatus = PARSING_REQUEST_LINE;
-				body = NULL;
-				arguments = NULL;
-				headerRoot = NULL;
-				bstargroot = NULL;
-			}
-			
 		}
+		/*Dopo aver letto la dimensione del messaggio, verifica
+		di avere lo spazio per leggere la richiesta. Se l'abbiamo,
+		abbiamo già letto tutto il body, quindi possiamo rispondere
+		(mettiamo requestStatus = RESPONDING).
+		Altrimenti, realloca precisamente lo spazio richiesto per il body.*/
 		if (requestStatus == OBTAINING_BODY){
 			if ((buf + messageEndOffset) >= (buf+realUsedSize)){
 				realUsedSize = messageEndOffset+1;
@@ -701,7 +723,9 @@ void *thread_handle_connection_routine(void* inputptr){
 				}
 			} else requestStatus = RESPONDING;
 		}
+		/* Se non stiamo rispondendo, dobbiamo leggere ancora la richiesta.*/
 		if (requestStatus != RESPONDING){
+			//Verifica che abbiamo ancora spazio. Altrimenti, realloca.
 			if (nextReadLocation >= (buf + realUsedSize)){
 				realUsedSize += BUFSIZE/2;
 				int endLinePtrOffset = endLinePtr - buf;
@@ -716,13 +740,16 @@ void *thread_handle_connection_routine(void* inputptr){
 				}
 			}
 			bytesJustRead = read(stv->fd, nextReadLocation, toRead);
+			//Connessione chiusa
 			if (bytesJustRead == 0) {
 				mlog(tag, 
-					"Connection closed unexpectedly.");
+					"Connection closed.");
 				shouldCloseConnection = true;
 				requestStatus = DONE;
 				continue;
-			} else if (bytesJustRead == -1 && 
+			} 
+			//Timeout
+			else if (bytesJustRead == -1 && 
 				(errno == EAGAIN || errno == EWOULDBLOCK)){
 				mlog(tag,
 					"Socket read timeout.");
@@ -730,9 +757,11 @@ void *thread_handle_connection_routine(void* inputptr){
 				requestStatus = DONE;
 				continue;	
 			}
-			mlog("SERVER-CONNECTION-DEBUG", nextReadLocation);
+			//Logga tutto quello che abbiamo letto (solitamente tutta la richiesta)
+			mlog("SERVER-CONNECTION", nextReadLocation);
 			byteCount += bytesJustRead;
 			nextReadLocation += bytesJustRead;
+			//Se stavamo cercando di ottenere il body, verifica se l'abbiamo ottenuto o meno.
 			if (requestStatus == OBTAINING_BODY){
 				if ((buf + byteCount - 1) >= (buf + messageEndOffset)){
 					requestStatus = RESPONDING;
@@ -740,10 +769,13 @@ void *thread_handle_connection_routine(void* inputptr){
 				}
 			}
 		}
+		/*Codice principale per l'elaborazione della richiesta.
+		Tutto è letto una linea alla volta, eccetto il body.*/
 		while(1){
 			if (requestStatus == DONE) break;
 			if (requestStatus == OBTAINING_BODY) break;
 			if (endLinePtr != NULL) startLinePtr = endLinePtr+1;
+			//Se c'è un errore, rispondiamo immediatamente.
 			if (errCode != UNDEFINED) requestStatus = RESPONDING;
 			if (requestStatus != RESPONDING) {
 				endLinePtr = find_newline(startLinePtr, 
@@ -755,6 +787,7 @@ void *thread_handle_connection_routine(void* inputptr){
 			}
 			switch(requestStatus){
 				case PARSING_REQUEST_LINE:
+					//es: GET /products HTTP/1.1
 					if (sscanf(startLinePtr, "%s %s %s", methodbuf, pathbuf, versionbuf) != 3) {
 						errCode = BAD_REQUEST; 
 						break;
@@ -775,6 +808,7 @@ void *thread_handle_connection_routine(void* inputptr){
 					else pathptr = pathbuf;
 					strcpy(tmppathbuf, pathptr);
 					token = strtok(tmppathbuf, "?");
+					//Ottieni gli argomenti della richiesta
 					if (token != NULL){
 						if (strlen(token) != strlen(pathptr)){
 							arguments = strtok(NULL, "?");                                          	
@@ -782,12 +816,14 @@ void *thread_handle_connection_routine(void* inputptr){
 								{errCode = BAD_REQUEST; break;}
 						}	
 					}
+					//Ottieni la route della richiesta
 					requestedroute = search(routeroot, token);
 					if (requestedroute == NULL) {errCode = NOT_FOUND; break;}
 					else{
 						routeinfo *rinfo = (routeinfo*)(requestedroute->value);
+						//Verifica che il metodo sia valido per la route
 						int8_t methodFlag = get_flag_value_for_method(method);						
-                                                if (!(rinfo->acceptedMethodsMask & methodFlag))
+						if (!(rinfo->acceptedMethodsMask & methodFlag))
 							{errCode = METHOD_NOT_ALLOWED; break;}
 						if (rinfo->requiresBody) requiresBody = true;	
 					}
@@ -831,7 +867,8 @@ void *thread_handle_connection_routine(void* inputptr){
 						bodyStartOffset = (startLinePtr+2) - buf;
 						requestStatus = OBTAINING_BODY;
 						break;
-					}						
+					}
+					//Lettura nome header e valore header
 					if (sscanf(startLinePtr, "%[^:]: %[^\t\r\n]", headernamebuf, valuebuf) != 2)
 						{errCode = BAD_REQUEST; break;}
 					if (strcmp(headernamebuf, "Host") == 0){
@@ -851,7 +888,8 @@ void *thread_handle_connection_routine(void* inputptr){
 					char *headervalue = malloc
 							(sizeof(char)*(strlen(valuebuf)+1));
 					strcpy(headername, headernamebuf);
-					strcpy(headervalue, valuebuf);	
+					strcpy(headervalue, valuebuf);
+					//Aggiungi nuovo header al bst degli header
 					headerRoot = add_bstnode(headerRoot, 
 						create_bstnode(headername, headervalue));
 					if (headerRoot == NULL ||
@@ -863,6 +901,8 @@ void *thread_handle_connection_routine(void* inputptr){
 					break;
 				case OBTAINING_BODY:
 					break;
+				/*Codice del parsing del body "chunked". Teoricamente mai utilizzato,
+				ma implementato per rispettare le specifiche HTTP 1.1*/
 				case PARSING_CHUNKED_BODY:
 					while(1){
 						if (*startLinePtr == 0) break;
@@ -918,6 +958,7 @@ void *thread_handle_connection_routine(void* inputptr){
 							}
 						}
 					}
+					//Risposta di errore
 					if (errCode != UNDEFINED){
 						char *errLogBegin = "Sending error response with code ";
 						const char *errCodeString = get_response_code_string(errCode);
@@ -940,10 +981,6 @@ void *thread_handle_connection_routine(void* inputptr){
 						newThreadInput->serverConfig = serverConfig;
 						pthread_t *tid = malloc(sizeof(pthread_t));
 						newThreadInput->tid = tid;
-						if (tid100continue != 0)
-						{
-							pthread_join(tid100continue, NULL);
-						}
 						void *(*request_handler)(void*) = ((routeinfo*)requestedroute->value)->request_handler;
 						if (!start_thread(request_handler, (void*) newThreadInput, stv, tid)){
 							shouldCloseConnection = true;

@@ -7,18 +7,6 @@
 
 #include "dbconn.h"
 
-const char *productcolumnnames[] =
-	{"pid", 
-	"200 OK", 
-	"400 Bad Request",
-	"401 Unauthorized",
-	"404 Not Found",
-	"405 Method Not Allowed",
-	"500 Internal Server Error", 
-	"501 Not Implemented", 
-	"503 Service Unavailable", 
-	""};
-
 PGconn *get_db_conn(char *dbName, char* username, char *password, char *dbAddr, char *err){
 	char *formatStr = "user=%s password=%s dbname=%s hostaddr=%s";
 	if (dbName == NULL || username == NULL || password == NULL || err == NULL){
