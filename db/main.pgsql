@@ -39,7 +39,7 @@ CREATE TABLE Product(
 	price float NOT NULL,
 	productTypeVar productType NOT NULL,
 	imagePath text,
-	ingredientList text NOT NULL DEFAULT "",
+	ingredientList text NOT NULL DEFAULT '',
 	CONSTRAINT PRODUCT_PK PRIMARY KEY(pid),
 	CONSTRAINT PRODUCT_PRICE_FORCE_TWO_DECIMAL_DIGITS CHECK (price = round(price::numeric, 2))
 );
@@ -75,10 +75,10 @@ BEGIN
 	SELECT ingredientList INTO newIngredientList 
 	FROM Product FOR NO KEY UPDATE
 	WHERE pid = NEW.productPid;
-	IF (newIngredientList = "") THEN
+	IF (newIngredientList = '') THEN
 		newIngredientList = NEW.productName;
 	ELSE
-		newIngredientList = newIngredientList || ", " || NEW.productName;
+		newIngredientList = newIngredientList || ', ' || NEW.productName;
 	END IF;
 	UPDATE Product 
 	SET ingredientList = newIngredientList
