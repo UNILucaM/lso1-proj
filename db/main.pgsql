@@ -82,7 +82,7 @@ BEGIN
 	END IF;
 	UPDATE Product 
 	SET ingredientList = newIngredientList
-	WHERE pid = NEW.productPid;
+	WHERE pid = NEW.pid;
 	RETURN NEW;
 END
 $$;
