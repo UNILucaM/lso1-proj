@@ -29,22 +29,26 @@ del programma e dei suoi threads.*/
 //fd = file descriptor della connessione
 //routeroot = root del bstnode che contiene le route del serverConfig
 //serverConfig = configurazione del server (vedere serverconfig.h)
+//connectionNum = numero di connessione (usato per il logging)
 typedef struct handleconnectioninput{
 	int fd;
 	bstnode *routeroot;
 	serverconfig *serverConfig;
+	int connectionNum;
 } handleconnectioninput;
 
 /*Struct che contiene variabili condivise tra il thread che gestisce 
 la connessione e tutti i suoi figli. Abbiamo il file descriptor
 della connessione, una lista con tutti i tid dei thread attivi,
-e i loro mutex. La presenza della lista è fondamentale, poiché
+i loro mutex, e un numero di connessione (sempre per il logging). 
+La presenza della lista è fondamentale, poiché
 il thread della richiesta deve sapere quando poter deallocare
 le risorse, chiudere il fd in scrittura (in lettura viene chiuso prima) 
 e terminare, mentre i thread figli devono poter rimuoversi dalla lista. 
 */
 typedef struct sharedthreadvariables{
 	int fd;
+	int connectionNum;
 	linkedlistnode *activeThreads;
 	pthread_mutex_t fdMutex;
 	pthread_mutex_t activeThreadsMutex;

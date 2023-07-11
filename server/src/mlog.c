@@ -6,11 +6,11 @@
 
 #include "mlog.h"
 
-void mlog(char* tag, char* message){
+void mlog(char* tag, char* message, int connectionNum){
 	time_t currenttime;
 	time(&currenttime);
 	char *timeStr = ctime(&currenttime);
 	//rimuovi newline
 	timeStr[strlen(timeStr)-1] = '\0';
-	printf("{%ld} [%s] %s: %s\n", pthread_self(), timeStr, tag, message);
+	printf("(%d) {%ld} [%s] %s: %s\n", connectionNum, pthread_self(), timeStr, tag, message);
 }

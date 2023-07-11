@@ -22,14 +22,14 @@ void *thread_images_routine(void *arg){
 	char *tag = "SERVER-IMAGES";
 	if (arg == NULL){
 		mlog(tag, 
-			"Passed NULL to thread_images_routine. Program will be terminated.");
+			"Passed NULL to thread_images_routine. Program will be terminated.", -1);
 		fatal("Unexpected NULL argument while starting thread.");
 	}
 	handlerequestinput *hri = (handlerequestinput*)arg;
 	sharedthreadvariables *stv = hri->stv;                                    	
 	if (stv == NULL){
 		mlog(tag,
-        		"Stv is NULL. Program will be terminated.");
+        		"Stv is NULL. Program will be terminated.", -1);
         fatal("Unexpected NULL sharedThreadVariables while staring thread.");
 	}
 	responsecode statusCode = UNDEFINED;
@@ -72,7 +72,7 @@ void *thread_images_routine(void *arg){
 				image = load_image_from_path_timebased
 					(imageName, &imageByteSize, headerLastModified, isIfModifiedSince);
 				if (image == NULL && imageByteSize != NO_NEED_TO_LOAD){
-					mlog(tag, (char*) get_image_load_error_string(imageByteSize));
+					mlog(tag, (char*) get_image_load_error_string(imageByteSize), stv->connectionNum);
 					statusCode = (imageByteSize == STAT_ERROR) ? 
 						NOT_FOUND : INTERNAL_SERVER_ERROR;
 				} else statusCode = OK;
@@ -93,10 +93,10 @@ void *thread_images_routine(void *arg){
 				NOT_MODIFIED : PRECONDITION_FAILED;
 			mlog(tag, (statusCode == NOT_MODIFIED) ? 
 				"Image not modified. No image will be sent." 
-				: "Precondition failed. No image will be sent.");
+				: "Precondition failed. No image will be sent.", stv->connectionNum);
 		}
 	}
-	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
+	else {mlog(tag, "Could not allocate header.", stv->connectionNum); statusCode = SERVICE_UNAVAILABLE;}
 	attempt_response(tag, stv, statusCode, header, image, shouldClose, imageByteSize);
 	if (header != NULL) free(header);
 	if (image != NULL) free(image);
@@ -107,21 +107,21 @@ void *thread_products_routine(void *arg){
 	char *tag = "SERVER-PRODUCTS";
 	if (arg == NULL){
 		mlog(tag,
-			"Passed NULL to thread_products_routine. Program will be terminated.");
+			"Passed NULL to thread_products_routine. Program will be terminated.", -1);
 		fatal("Unexpected NULL argument while starting thread.");
 	}
 	handlerequestinput *hri = (handlerequestinput*)arg; 
 	sharedthreadvariables *stv = hri->stv;
 	if (stv == NULL){
 			mlog(tag,
-        		"Stv is NULL. Program will be terminated.");
+        		"Stv is NULL. Program will be terminated.", -1);
         	fatal("Unexpected NULL sharedThreadVariables while staring thread.");
 	}
 	responsecode statusCode = UNDEFINED;
 	char *errBuf = malloc(sizeof(char)*ERRBUFSIZE);
 	if (errBuf == NULL) {
 		mlog(tag,
-			"Could not allocate memory for errBuf. Quitting thread.");
+			"Could not allocate memory for errBuf. Quitting thread.", stv->connectionNum);
 		end_self_thread(hri, hri->stv, hri->tid);
 	}
 	errBuf[0] = '\0';
@@ -159,12 +159,13 @@ void *thread_products_routine(void *arg){
 			(sc->dbName, sc->dbUsername, sc->dbPassword, sc->dbAddr, errBuf);    
 		if (conn == NULL || errBuf[0] != '\0'){                                                                                 
 			if (errBuf[0] != '\0') {                                                                                          
-				mlog(tag, errBuf);                                                                         
+				mlog(tag, errBuf, stv->connectionNum);                                                                         
 				statusCode = INTERNAL_SERVER_ERROR;                                                                                         
 			}                                                                                                                 
 			else {                                                                                                            
 				mlog(tag,                                                                                   
-					"Unexpected errBuf NULL, but conn is NULL. Quitting thread, but this should not happen.");
+					"Unexpected errBuf NULL, but conn is NULL. Quitting thread, but this should not happen.",
+					stv->connectionNum);
 				free(errBuf);        
 				end_self_thread(hri, hri->stv, hri->tid);                                                                 
 			}                                                                                                                 
@@ -195,12 +196,12 @@ void *thread_products_routine(void *arg){
 				{statusCode = BAD_REQUEST;}
 				else statusCode = INTERNAL_SERVER_ERROR; 
 				mlog(tag,
-					PQerrorMessage(conn));	
+					PQerrorMessage(conn), stv->connectionNum);	
 			} else {
 				body = make_json_array_from_productqueryresult
 					(queryResult, errBuf, (type == PRODUCT_TYPE_SUGGESTED));
 				if (body == NULL || errBuf[0] != '\0'){
-					mlog(tag, ((errBuf[0] != '\0') ? errBuf : "Body is null."));
+					mlog(tag, ((errBuf[0] != '\0') ? errBuf : "Body is null."), stv->connectionNum);
 					statusCode = BAD_REQUEST;
 				} else statusCode = OK;
 			}
@@ -216,7 +217,7 @@ void *thread_products_routine(void *arg){
 		 shouldClose = create_basic_header(header, headerRoot, contentLength);
 		 strcat(header, "\r\n");
 	}
-	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
+	else {mlog(tag, "Could not allocate header.", stv->connectionNum); statusCode = SERVICE_UNAVAILABLE;}
 	attempt_response(tag, stv, statusCode, header, body, shouldClose, 0);
 	if (header != NULL) free(header);
 	if (body != NULL) free(body);
@@ -227,21 +228,21 @@ void *thread_login_routine(void* arg){
 	char *tag = "SERVER-LOGIN";
 	if (arg == NULL){
 		mlog(tag, 
-			"Passed NULL to thread_login_routine. Program will be terminated.");
+			"Passed NULL to thread_login_routine. Program will be terminated.", -1);
 		fatal("Unexpected NULL argument while starting thread.");
 	}
 	handlerequestinput *hri = (handlerequestinput*)arg;
 	sharedthreadvariables *stv = hri->stv;                                    	
 	if (stv == NULL){
 		mlog(tag,
-        		"Stv is NULL. Program will be terminated.");
+        		"Stv is NULL. Program will be terminated.", -1);
         fatal("Unexpected NULL sharedThreadVariables while staring thread.");
 	}
 	responsecode statusCode = UNDEFINED;
 	char *errBuf = malloc(sizeof(char)*ERRBUFSIZE);
 	if (errBuf == NULL) {
 		mlog(tag,
-			"Could not allocate memory for errBuf. Quitting thread.");
+			"Could not allocate memory for errBuf. Quitting thread.", stv->connectionNum);
 		end_self_thread(hri, hri->stv, hri->tid);
 	}
 	errBuf[0] = '\0';
@@ -274,12 +275,13 @@ void *thread_login_routine(void* arg){
 			(sc->dbName, sc->dbUsername, sc->dbPassword, sc->dbAddr, errBuf);                                            
 		if (conn == NULL || errBuf[0] != '\0'){                                                                                 
 			if (errBuf[0] != '\0') {                                                                                          
-				mlog(tag, errBuf);                                                                         
+				mlog(tag, errBuf, stv->connectionNum);                                                                         
 				statusCode = INTERNAL_SERVER_ERROR;                                                                                         
 			}                                                                                                                 
 			else {                                                                                                            
 				mlog(tag,                                                                                   
-					"Unexpected errBuf NULL, but conn is NULL. Quitting thread, but this should not happen.");
+					"Unexpected errBuf NULL, but conn is NULL. Quitting thread, but this should not happen.",
+					stv->connectionNum);
 				free(errBuf);        
 				end_self_thread(hri, hri->stv, hri->tid);                                                                 
 			}                                                                                                                 
@@ -299,7 +301,7 @@ void *thread_login_routine(void* arg){
 				{statusCode = BAD_REQUEST;}
 				else statusCode = INTERNAL_SERVER_ERROR; 
 				mlog(tag,
-					PQerrorMessage(conn));	
+					PQerrorMessage(conn), stv->connectionNum);	
 			} else {
 				if (PQntuples(queryResult) == 1) statusCode = OK;
 				else statusCode = UNAUTHORIZED;
@@ -317,7 +319,7 @@ void *thread_login_routine(void* arg){
 		 shouldClose = create_basic_header(header, hri->headers, contentLength);
 		 strcat(header, "\r\n");
 	}
-	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
+	else {mlog(tag, "Could not allocate header.", stv->connectionNum); statusCode = SERVICE_UNAVAILABLE;}
 	attempt_response(tag, stv, statusCode, header, NULL, shouldClose, 0);
 	free(header);
 	end_self_thread(hri, hri->stv, hri->tid);
@@ -327,21 +329,21 @@ void *thread_products_purchase_routine(void* arg){
 	char *tag = "SERVER-PRODUCTSPURCHASE";
 	if (arg == NULL){                                         		
 		mlog(tag,
-			"Passed NULL to thread_products_purchase_routine. Program will be terminated.");
+			"Passed NULL to thread_products_purchase_routine. Program will be terminated.", -1);
 		fatal("Unexpected NULL argument while starting thread.");
 	}
 	handlerequestinput *hri = (handlerequestinput*)arg; 
 	sharedthreadvariables *stv = hri->stv;
 	if (stv == NULL){
 		mlog(tag,
-			"Stv is NULL. Program will be terminated.");
+			"Stv is NULL. Program will be terminated.", -1);
 		fatal("Unexpected NULL sharedThreadVariables while staring thread.");
 	}
 	responsecode statusCode = UNDEFINED;
 	char *errBuf = malloc(sizeof(char)*ERRBUFSIZE);
 	if (errBuf == NULL) {
 		mlog(tag,
-			"Could not allocate memory for errBuf. Quitting thread.");
+			"Could not allocate memory for errBuf. Quitting thread.", stv->connectionNum);
 		end_self_thread(hri, hri->stv, hri->tid);
 	}
 	errBuf[0] = '\0';
@@ -370,12 +372,13 @@ void *thread_products_purchase_routine(void* arg){
 		(sc->dbName, sc->dbUsername, sc->dbPassword, sc->dbAddr, errBuf);
 	if (conn == NULL || errBuf[0] != '\0'){                                                                                 
 		if (errBuf[0] != '\0') {                                                                                          
-			mlog(tag, errBuf);                                                                         
+			mlog(tag, errBuf, stv->connectionNum);                                                                         
 			statusCode = SERVICE_UNAVAILABLE;                                                                                         
 		}                                                                                                                 
 		else {                                                                                                            
 			mlog(tag,                                                                                   
-				"Unexpected *errBuf NULL, but conn is NULL. Quitting thread, but this should not happen.");
+				"Unexpected *errBuf NULL, but conn is NULL. Quitting thread, but this should not happen.",
+				stv->connectionNum);
 			free(errBuf);        
 			end_self_thread(hri, hri->stv, hri->tid);                                                                 
 		}                                                                                                                 
@@ -428,7 +431,7 @@ void *thread_products_purchase_routine(void* arg){
 							}
 							else statusCode = INTERNAL_SERVER_ERROR; 
 							mlog(tag,
-								PQerrorMessage(conn));	
+								PQerrorMessage(conn), stv->connectionNum);	
 						} else wasAtleastOnePurchaseSuccessful = true;
 						PQclear(queryResult);
 						if (statusCode == INTERNAL_SERVER_ERROR || statusCode == SERVICE_UNAVAILABLE){
@@ -455,7 +458,7 @@ void *thread_products_purchase_routine(void* arg){
 		 shouldClose = create_basic_header(header, headerRoot, contentLength);
 		 strcat(header, "\r\n");
 	}
-	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
+	else {mlog(tag, "Could not allocate header.", stv->connectionNum); statusCode = SERVICE_UNAVAILABLE;}
 	attempt_response(tag, stv, statusCode, header, body, shouldClose, 0);
 	free(header);
 	free(body);
@@ -466,21 +469,21 @@ void *thread_register_routine(void* arg){
 	char *tag = "SERVER-REGISTER";
 	if (arg == NULL){
 		mlog(tag, 
-			"Passed NULL to thread_register_routine. Program will be terminated.");
+			"Passed NULL to thread_register_routine. Program will be terminated.", -1);
 		fatal("Unexpected NULL argument while starting thread.");
 	}
 	handlerequestinput *hri = (handlerequestinput*)arg;
 	sharedthreadvariables *stv = hri->stv;                                    	
 	if (stv == NULL){
 		mlog(tag,
-        		"Stv is NULL. Program will be terminated.");
+        		"Stv is NULL. Program will be terminated.", -1);
         fatal("Unexpected NULL sharedThreadVariables while staring thread.");
 	}
 	responsecode statusCode = UNDEFINED;
 	char *errBuf = malloc(sizeof(char)*ERRBUFSIZE);
 	if (errBuf == NULL) {
 		mlog(tag,
-			"Could not allocate memory for errBuf. Quitting thread.");
+			"Could not allocate memory for errBuf. Quitting thread.", stv->connectionNum);
 		end_self_thread(hri, hri->stv, hri->tid);
 	}
 	errBuf[0] = '\0';
@@ -513,12 +516,13 @@ void *thread_register_routine(void* arg){
 			(sc->dbName, sc->dbUsername, sc->dbPassword, sc->dbAddr, errBuf);                                            
 		if (conn == NULL || errBuf[0] != '\0'){                                                                                 
 			if (errBuf[0] != '\0') {                                                                                          
-				mlog(tag, errBuf);                                                                         
+				mlog(tag, errBuf, stv->connectionNum);                                                                         
 				statusCode = SERVICE_UNAVAILABLE;                                                                                         
 			}                                                                                                                 
 			else {                                                                                                            
 				mlog(tag,                                                                                   
-					"Unexpected *errBuf NULL, but conn is NULL. Quitting thread, but this should not happen.");
+					"Unexpected *errBuf NULL, but conn is NULL. Quitting thread, but this should not happen.",
+					stv->connectionNum);
 				free(errBuf);        
 				end_self_thread(hri, hri->stv, hri->tid);                                                                 
 			}                                                                                                                 
@@ -538,7 +542,7 @@ void *thread_register_routine(void* arg){
 				{statusCode = BAD_REQUEST;}
 				else statusCode = INTERNAL_SERVER_ERROR; 
 				mlog(tag,
-					PQerrorMessage(conn));	
+					PQerrorMessage(conn), stv->connectionNum);	
 			} else statusCode = OK;
 			PQclear(queryResult);
 		}
@@ -553,7 +557,7 @@ void *thread_register_routine(void* arg){
 		 shouldClose = create_basic_header(header, hri->headers, contentLength);
 		 strcat(header, "\r\n");
 	}
-	else {mlog(tag, "Could not allocate header."); statusCode = SERVICE_UNAVAILABLE;}
+	else {mlog(tag, "Could not allocate header.", stv->connectionNum); statusCode = SERVICE_UNAVAILABLE;}
 	attempt_response(tag, stv, statusCode, header, NULL, shouldClose, 0);
 	free(header);
 	end_self_thread(hri, hri->stv, hri->tid);
@@ -563,14 +567,14 @@ void *thread_send_100_continue(void* arg){
 	char *tag;
 	if (arg == NULL){                                         		
         	mlog(tag,
-        		"Passed NULL to thread_send_100_continue. Program will be terminated.");
+        		"Passed NULL to thread_send_100_continue. Program will be terminated.", -1);
         	fatal("Unexpected NULL argument while starting thread.");
         }
         handle100continueinput *h100ci = (handle100continueinput*)arg;
 	sharedthreadvariables *stv = h100ci->stv;
 	if (stv == NULL){
 		mlog(tag,
-			"Stv is NULL. Program will be terminated.");
+			"Stv is NULL. Program will be terminated.", -1);
 		fatal("Unexpected NULL sharedThreadVariables while staring thread.");
 	}
 	attempt_response(tag, stv, CONTINUE, "\r\n", NULL, false, 0);
@@ -581,6 +585,7 @@ void *thread_handle_connection_routine(void* inputptr){
 	handleconnectioninput *hci = ((handleconnectioninput*)inputptr);
 	sharedthreadvariables *stv = malloc(sizeof(sharedthreadvariables));
 	stv->fd = hci->fd;
+	stv->connectionNum = hci->connectionNum;
 	stv->activeThreads = NULL;
 	pthread_mutex_init(&(stv->activeThreadsMutex), NULL);
 	pthread_mutex_init(&(stv->fdMutex), NULL);
@@ -649,7 +654,7 @@ void *thread_handle_connection_routine(void* inputptr){
 	if (buf == NULL || pathbuf == NULL || methodbuf == NULL || tmppathbuf == NULL 
 	|| headernamebuf == NULL || valuebuf == NULL || isHeaderFuncOutOfMemory == NULL){
 		mlog(tag, 
-			"Could not allocate memory for request.");
+			"Could not allocate memory for request.", stv->connectionNum);
 		return NULL;
 	}
 	memset(buf, 0, BUFSIZE);
@@ -689,7 +694,7 @@ void *thread_handle_connection_routine(void* inputptr){
 				buf = realloc(buf, reallocSize);
 				if (buf == NULL){
 					mlog(tag, 
-						"Could not reallocate memory for request.");
+						"Could not reallocate memory for request.", stv->connectionNum);
 					errCode = SERVICE_UNAVAILABLE;
 					requestStatus = RESPONDING;
 				}
@@ -712,7 +717,7 @@ void *thread_handle_connection_routine(void* inputptr){
 				buf = realloc(buf, realUsedSize);
 				if (buf == NULL){
 					mlog(tag, 
-						"Could not reallocate memory for request.");
+						"Could not reallocate memory for request.", stv->connectionNum);
 					errCode = SERVICE_UNAVAILABLE;
 					requestStatus = RESPONDING;
 				}
@@ -735,7 +740,7 @@ void *thread_handle_connection_routine(void* inputptr){
 				toRead = realUsedSize - byteCount;
 				if (buf == NULL){
 					mlog(tag, 
-						"Could not reallocate memory for request.");
+						"Could not reallocate memory for request.", stv->connectionNum);
 					errCode = SERVICE_UNAVAILABLE;
 				}
 			}
@@ -743,7 +748,7 @@ void *thread_handle_connection_routine(void* inputptr){
 			//Connessione chiusa
 			if (bytesJustRead == 0) {
 				mlog(tag, 
-					"Connection closed.");
+					"Connection closed.", stv->connectionNum);
 				shouldCloseConnection = true;
 				requestStatus = DONE;
 				continue;
@@ -752,13 +757,14 @@ void *thread_handle_connection_routine(void* inputptr){
 			else if (bytesJustRead == -1 && 
 				(errno == EAGAIN || errno == EWOULDBLOCK)){
 				mlog(tag,
-					"Socket read timeout.");
+					"Socket read timeout.", stv->connectionNum);
 				shouldCloseConnection = true;
 				requestStatus = DONE;
 				continue;	
 			}
 			//Logga tutto quello che abbiamo letto (solitamente tutta la richiesta)
-			mlog("SERVER-CONNECTION", nextReadLocation);
+			mlog("SERVER-CONNECTION", "Received:", stv->connectionNum);
+			printf("%s\n", nextReadLocation);
 			byteCount += bytesJustRead;
 			nextReadLocation += bytesJustRead;
 			//Se stavamo cercando di ottenere il body, verifica se l'abbiamo ottenuto o meno.
@@ -781,7 +787,7 @@ void *thread_handle_connection_routine(void* inputptr){
 				endLinePtr = find_newline(startLinePtr, 
 					(nextReadLocation) - startLinePtr) - 1;
 				if (endLinePtr == NULL){
-					mlog(tag, "Didn't find endline. Rereading...");
+					mlog(tag, "Didn't find endline. Rereading...", stv->connectionNum);
 					break;
 				};  	
 			}
@@ -894,7 +900,7 @@ void *thread_handle_connection_routine(void* inputptr){
 						create_bstnode(headername, headervalue));
 					if (headerRoot == NULL ||
 						 headername == NULL || headervalue == NULL) {
-						mlog(tag, "Could not allocate memory for header.");
+						mlog(tag, "Could not allocate memory for header.", stv->connectionNum);
 						errCode = SERVICE_UNAVAILABLE;
 						break;
 					}
@@ -931,7 +937,7 @@ void *thread_handle_connection_routine(void* inputptr){
 							body = malloc(sizeof(char)*(contentLength+1));
 							if (body == NULL) {
 								mlog(tag, 
-									"Could not reallocate memory for request.");
+									"Could not reallocate memory for request.", stv->connectionNum);
 								errCode = SERVICE_UNAVAILABLE;				
 							} else {
 								strncpy(body, buf+bodyStartOffset, contentLength);
@@ -942,7 +948,7 @@ void *thread_handle_connection_routine(void* inputptr){
 						if (newThreadInput == NULL) {
 							free(newThreadInput);
 							mlog(tag, 
-									"Could not allocate memory for request.");
+								"Could not allocate memory for request.", stv->connectionNum);
 							errCode = SERVICE_UNAVAILABLE;
 						}
 						else {
@@ -952,7 +958,7 @@ void *thread_handle_connection_routine(void* inputptr){
 								if (bstargroot == NULL) {
 									free(newThreadInput);
 									mlog(tag,
-										"Could not allocate memory for request.");
+										"Could not allocate memory for request.", stv->connectionNum);
 									errCode = SERVICE_UNAVAILABLE;
 								}
 							}
@@ -966,7 +972,7 @@ void *thread_handle_connection_routine(void* inputptr){
 							strlen(errCodeString)+1);
 						strcpy(tmpErrMessageBuf, errLogBegin);
 						strcat(tmpErrMessageBuf, errCodeString);
-						mlog(tag, tmpErrMessageBuf);
+						mlog(tag, tmpErrMessageBuf, stv->connectionNum);
 						shouldCloseConnection = true;
 						attempt_error_response(tag, stv, errCode);
 						free(tmpErrMessageBuf);
@@ -1010,20 +1016,23 @@ void *thread_handle_connection_routine(void* inputptr){
 		usleep(ACTIVETHREADSCHECKDELAY_MS);
 	}
 	close(stv->fd);
+	int tmpConnectionNum = stv->connectionNum;
 	free_sharedthreadvariables(stv);
 	free(hci);
-	mlog(tag, "Exiting thread...");
+	mlog(tag, "Exiting thread...", tmpConnectionNum);
 }
 
 bool start_thread(void *(*request_handler)(void*), void *input,
 		sharedthreadvariables *stv, pthread_t *tid){
 	if (tid == NULL || stv == NULL || input == NULL || request_handler == NULL){
-		mlog("SERVER-CONN", "Could not start new thread (bad arguments).");
+		mlog("SERVER-CONN", "Could not start new thread (bad arguments).", 
+			(stv == NULL) ? -1 : stv->connectionNum);
 		return false;
 	}
 	bool wasAdded = add_activethread(stv, tid);	
 	if (!wasAdded){
-		mlog("SERVER-CONN", "Could not add thread to list of active threads. Aborting creation.");
+		mlog("SERVER-CONN", "Could not add thread to list of active threads. Aborting creation.",
+			stv->connectionNum);
 		return false;	 
 	}
 	int createRetValue;
@@ -1031,13 +1040,14 @@ bool start_thread(void *(*request_handler)(void*), void *input,
 	int initRet = pthread_attr_init(&attr);
 	if (initRet != 0 || pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) != 0){
 		if (initRet == 0) pthread_attr_destroy(&attr);
-		mlog("SERVER-CONN", "Could not set detached state. Aborting thread creation.");
+		mlog("SERVER-CONN", "Could not set detached state. Aborting thread creation.", 
+			stv->connectionNum);
 		remove_activethread(stv, tid);
 		return false;
 	}                                                		
 	createRetValue = pthread_create(tid, &attr, request_handler, input);
 	if (createRetValue != 0){
-		mlog("SERVER-CONN", strerror(createRetValue));
+		mlog("SERVER-CONN", strerror(createRetValue), stv->connectionNum);
 		pthread_attr_destroy(&attr);
 		remove_activethread(stv, tid);
 		return false;	
@@ -1112,6 +1122,6 @@ void attempt_response(char *logtag, sharedthreadvariables *stv,
 		bool timedOut = (errno == EAGAIN || errno == EWOULDBLOCK);
 		char *errStr = (timedOut) ? 
 			"Write timed out." : strerror(writeResult);
-		mlog(logtag, errStr);
-	} else mlog(logtag, "Write completed.");
+		mlog(logtag, errStr, stv->connectionNum);
+	} else mlog(logtag, "Write completed.", stv->connectionNum);
 }

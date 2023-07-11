@@ -14,6 +14,7 @@
 #include <stdbool.h>
 #include <sys/un.h>
 #include <sys/time.h>
+#include <limits.h>
 
 #include "errorhandling.h"
 #include "mlog.h"
@@ -22,6 +23,7 @@
 #include "threadroutines.h"
 #include "httphelper.h"
 #include "config.h"
+
 
 #define SERVERCONFIGFILENAME "config.cfg"
 #define READ_TIMEOUT_S 60
@@ -84,25 +86,27 @@ int main(int argc, char **argv){
 	int threadCreateRetVal;
 	struct timeval timeoutW;
 	struct timeval timeoutR;
+	int connectionNum = 1;
 	bool failedToSetOptions = false;
 	timeoutR.tv_sec = READ_TIMEOUT_S;
 	timeoutW.tv_sec = WRITE_TIMEOUT_S;
 	timeoutR.tv_usec = READ_TIMEOUT_MS;
 	timeoutW.tv_usec = WRITE_TIMEOUT_MS;
 	while(1){
-		mlog("SERVER", "Waiting for new connection...");
+		mlog("SERVER", "Waiting for new connection...", 0);
 		int fd = accept(server->server_fd, NULL, NULL);
 		if (fd < 0) fatal("Cannot open new connection.");
-		mlog("SERVER", "New connection established!");
+		mlog("SERVER", "New connection established!", 0);
 		hci = malloc(sizeof(handleconnectioninput));
 		if (hci == NULL){
 			close(fd);
-			mlog("SERVER", "Cannot allocate handleconnectioninput.");
+			mlog("SERVER", "Cannot allocate handleconnectioninput.", 0);
 			continue;
 		}
 		hci->fd = fd;
 		hci->routeroot = routeroot;
 		hci->serverConfig = serverConfig;
+		hci->connectionNum = connectionNum;
 		if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeoutR, sizeof(struct timeval)) != -1 &&
 			setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeoutW, sizeof(struct timeval)) != -1){
 			threadCreateRetVal = pthread_create(&tid, NULL, &thread_handle_connection_routine, (void*) hci);
@@ -110,11 +114,15 @@ int main(int argc, char **argv){
 		if (failedToSetOptions || threadCreateRetVal != 0) {
 			char *errStr = (failedToSetOptions) ?
 				"Failed to set socket options." : strerror(threadCreateRetVal);
-			mlog("SERVER", errStr);
-			mlog("SERVER", strerror(errno));
+			mlog("SERVER", errStr, 0);
+			mlog("SERVER", strerror(errno), 0);
 			close(fd);
 			free(hci);	
-		} else pthread_detach(tid);
+		} else {
+			pthread_detach(tid);
+			connectionNum++;
+			if (connectionNum == INT_MAX) connectionNum = 1;
+		}
 		failedToSetOptions = false;
 	}
 }

@@ -73,16 +73,17 @@ DECLARE
 	newIngredientList text;
 BEGIN
 	SELECT ingredientList INTO newIngredientList 
-	FROM Product FOR NO KEY UPDATE
-	WHERE pid = NEW.productPid;
+	FROM Product 
+	WHERE pid = NEW.productPid
+	FOR NO KEY UPDATE;
 	IF (newIngredientList = '') THEN
-		newIngredientList = NEW.productName;
+		newIngredientList = NEW.ingredientName;
 	ELSE
-		newIngredientList = newIngredientList || ', ' || NEW.productName;
+		newIngredientList = newIngredientList || ', ' || NEW.ingredientName;
 	END IF;
 	UPDATE Product 
 	SET ingredientList = newIngredientList
-	WHERE pid = NEW.pid;
+	WHERE pid = NEW.productPid;
 	RETURN NEW;
 END
 $$;
