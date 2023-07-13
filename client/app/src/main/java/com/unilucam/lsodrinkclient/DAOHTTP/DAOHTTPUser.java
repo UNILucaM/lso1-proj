@@ -1,8 +1,10 @@
 package com.unilucam.lsodrinkclient.DAOHTTP;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.unilucam.lsodrinkclient.DAOHTTP.OkHttp.OkHttpClientInstance;
 import com.unilucam.lsodrinkclient.DAOs.DAOUser;
 import com.unilucam.lsodrinkclient.DTO.DTOUser;
+import com.unilucam.lsodrinkclient.exceptions.UninitializedOkHttpClientInstanceException;
 import com.unilucam.lsodrinkclient.exceptions.WrappedCRUDException;
 
 import java.io.IOException;
@@ -40,10 +42,11 @@ public class DAOHTTPUser implements DAOUser {
 
     private HTTPAPIUser APIUser;
 
-    public DAOHTTPUser(String baseUrl){
+    public DAOHTTPUser(String baseUrl) throws UninitializedOkHttpClientInstanceException {
         ObjectMapper objectMapper = new ObjectMapper();
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl(baseUrl)
+                .client(OkHttpClientInstance.getOkHttpClientInstance())
                 .addConverterFactory(JacksonConverterFactory.create(objectMapper))
                 .build();
         APIUser = retrofit.create(HTTPAPIUser.class);

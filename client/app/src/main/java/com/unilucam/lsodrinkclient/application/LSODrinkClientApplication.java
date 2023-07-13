@@ -3,7 +3,9 @@ package com.unilucam.lsodrinkclient.application;
 import android.app.Application;
 import android.util.Log;
 
+import com.unilucam.lsodrinkclient.DAOHTTP.OkHttp.OkHttpClientInstance;
 import com.unilucam.lsodrinkclient.DAOHTTP.picasso.PicassoInstance;
+import com.unilucam.lsodrinkclient.exceptions.UninitializedOkHttpClientInstanceException;
 import com.unilucam.lsodrinkclient.sharedprefs.UserSessionManager;
 
 import java.util.concurrent.ExecutorService;
@@ -15,7 +17,14 @@ public class LSODrinkClientApplication extends Application {
         super.onCreate();
         UserSessionManager.init(getApplicationContext());
         Log.i("LSODrinkClientApp", "Initialized UserSessionManager");
-        PicassoInstance.init(getApplicationContext());
+        OkHttpClientInstance.init(getApplicationContext(), 5);
+        Log.i("LSODrinkClientApp", "Initialized OkHttpClientInstance");
+        try{
+            PicassoInstance.init(getApplicationContext());
+        }
+        catch (UninitializedOkHttpClientInstanceException ex){
+            Log.e("LSODrinkClientApp", "OkHttpClient instance not initialized!");
+        }
         Log.i("LSODrinkClientApp", "Initialized PicassoInstance");
     }
 

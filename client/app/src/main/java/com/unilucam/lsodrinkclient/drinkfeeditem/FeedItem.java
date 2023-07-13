@@ -18,6 +18,7 @@ public class FeedItem {
         productName = product.getProductName();
         price = product.getPrice();
         quantity = 0;
+        ingredientList = product.getIngredientList();
         this.productBitmap = productBitmap;
     }
 

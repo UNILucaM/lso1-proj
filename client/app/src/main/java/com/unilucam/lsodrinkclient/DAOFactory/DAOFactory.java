@@ -9,6 +9,7 @@ import com.unilucam.lsodrinkclient.DAOs.DAOUser;
 import com.unilucam.lsodrinkclient.configs.ConnectionConfig;
 import com.unilucam.lsodrinkclient.enums.ConnectionType;
 import com.unilucam.lsodrinkclient.exceptions.InvalidConnectionSettingsException;
+import com.unilucam.lsodrinkclient.exceptions.UninitializedOkHttpClientInstanceException;
 
 import java.sql.Connection;
 
@@ -17,19 +18,22 @@ public class DAOFactory {
     private static String getDefaultConnectionSettingsErrorMessage(){
         return "Invalid connection settings: " + ConnectionConfig.getConfigAsString();
     }
-    public static DAOProduct getDAOProduct() throws InvalidConnectionSettingsException{
+    public static DAOProduct getDAOProduct() throws InvalidConnectionSettingsException,
+            UninitializedOkHttpClientInstanceException {
         if (ConnectionConfig.getConnectionType().equals(ConnectionType.HTTP))
             return new DAOHTTPProduct(ConnectionConfig.getBaseUrl());
         else throw new InvalidConnectionSettingsException(getDefaultConnectionSettingsErrorMessage());
     }
 
-    public static DAOImage getDAOImage() throws InvalidConnectionSettingsException{
+    public static DAOImage getDAOImage() throws InvalidConnectionSettingsException,
+            UninitializedOkHttpClientInstanceException{
         if (ConnectionConfig.getConnectionType().equals(ConnectionType.HTTP))
             return new DAOHTTPImage(ConnectionConfig.getBaseUrl());
         else throw new InvalidConnectionSettingsException(getDefaultConnectionSettingsErrorMessage());
     }
 
-    public static DAOUser getDAOUser() throws InvalidConnectionSettingsException{
+    public static DAOUser getDAOUser() throws InvalidConnectionSettingsException,
+            UninitializedOkHttpClientInstanceException{
         if (ConnectionConfig.getConnectionType().equals(ConnectionType.HTTP))
             return new DAOHTTPUser(ConnectionConfig.getBaseUrl());
         else throw new InvalidConnectionSettingsException(getDefaultConnectionSettingsErrorMessage());

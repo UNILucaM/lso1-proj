@@ -40,6 +40,7 @@ import com.unilucam.lsodrinkclient.async.Result;
 import com.unilucam.lsodrinkclient.drinkfeeditem.FeedItem;
 import com.unilucam.lsodrinkclient.drinkfeeditem.FeedItemAdapter;
 import com.unilucam.lsodrinkclient.exceptions.InvalidConnectionSettingsException;
+import com.unilucam.lsodrinkclient.exceptions.UninitializedOkHttpClientInstanceException;
 import com.unilucam.lsodrinkclient.exceptions.WrappedCRUDException;
 import com.unilucam.lsodrinkclient.sharedprefs.UserSessionManager;
 
@@ -115,10 +116,10 @@ public class ControllerHome extends AppCompatActivity implements
             DAOProduct = DAOFactory.getDAOProduct();
             DAOImage = DAOFactory.getDAOImage();
         }
-        catch (InvalidConnectionSettingsException icse){
+        catch (InvalidConnectionSettingsException | UninitializedOkHttpClientInstanceException ex){
             ControllerUtils.showUserFriendlyErrorMessageAndLogThrowable
                     (getApplicationContext(), "Home",
-                    "Impossibile caricare i prodotti.", icse);
+                    "Impossibile caricare i prodotti.", ex);
         }
         executorService = LSODrinkClientApplication.getExecutorService();
 
@@ -135,8 +136,13 @@ public class ControllerHome extends AppCompatActivity implements
                                 (userId, DTOProductPurchaseCart);
                         if (unpurchasedProducts == null || unpurchasedProducts.isEmpty()){
                             runOnUiThread(()->{
-                                cartFeedItems.clear();
+                                FeedItem fi;
+                                while (!cartFeedItems.isEmpty()){
+                                    fi = cartFeedItems.remove(0);
+                                    fi.setQuantity(0);
+                                }
                                 cartPrice = 0f;
+                                numberOfItemsInCart = 0;
                                 cartBadge.setText("0");
                                 cartBadge.setVisibility(View.GONE);
                                 btnBuy.setText("Acquista");
@@ -171,7 +177,9 @@ public class ControllerHome extends AppCompatActivity implements
                                     }
                                 }
                                 if (!isFound) {
+                                    fi.setQuantity(0);
                                     cartFeedItems.remove(i);
+                                    numberOfItemsInCart--;
                                     i--;
                                 }
                                 if (nFound == unpurchasedProducts.size()) break;

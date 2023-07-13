@@ -20,6 +20,7 @@ import com.unilucam.lsodrinkclient.DAOs.DAOUser;
 import com.unilucam.lsodrinkclient.R;
 import com.unilucam.lsodrinkclient.application.LSODrinkClientApplication;
 import com.unilucam.lsodrinkclient.exceptions.InvalidConnectionSettingsException;
+import com.unilucam.lsodrinkclient.exceptions.UninitializedOkHttpClientInstanceException;
 import com.unilucam.lsodrinkclient.exceptions.WrappedCRUDException;
 import com.unilucam.lsodrinkclient.sharedprefs.UserSessionManager;
 
@@ -65,10 +66,10 @@ public class ControllerAuth extends AppCompatActivity {
         try{
             DAOUser = DAOFactory.getDAOUser();
         }
-        catch (InvalidConnectionSettingsException icse){
+        catch (InvalidConnectionSettingsException | UninitializedOkHttpClientInstanceException ex){
             ControllerUtils.showUserFriendlyErrorMessageAndLogThrowable
                     (getApplicationContext(), "Home",
-                            "Impossibile caricare i prodotti.", icse);
+                            "Impossibile autenticarsi.", ex);
         }
         userSessionManager = UserSessionManager.getInstance();
         executorService = LSODrinkClientApplication.getExecutorService();
