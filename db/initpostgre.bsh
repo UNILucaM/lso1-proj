@@ -54,8 +54,8 @@ else
 fi
 if [ $shouldNotCreate -eq 0 ]
 then
-	query1="CREATE USER $dbusername WITH PASSWORD $dbpassword;CREATE DATABASE $dbname WITH OWNER $dbusername;\n"
+	query1="CREATE USER $dbusername WITH PASSWORD '$dbpassword';CREATE DATABASE $dbname WITH OWNER $dbusername;\n"
 fi
 query2="\c $dbname $dbusername"
 query3=$(cat "$commandfile")
-printf "%s%s\n%s" "$query1" "$query2" "$query3" | psql -U postgres -h 127.0.0.1
+printf "%s%s\n'%s'" "$query1" "$query2" "$query3" | psql -U postgres -h 127.0.0.1
