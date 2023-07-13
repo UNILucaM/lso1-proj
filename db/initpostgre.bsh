@@ -1,0 +1,61 @@
+#!/bin/bash
+shouldInstall=0
+shouldNotCreateUser=0
+POSITIONAL_ARGS=()
+while [[ $# -gt 0 ]]; do
+	case $1 in
+	-s)
+		shouldInstall=1
+		shift 
+		;;
+	-n)
+		shouldNotCreate=1
+		shift
+      		;;
+	-*|--*)
+		echo "Unknown option $1"
+		exit 1
+		;;
+	*)
+		POSITIONAL_ARGS+=("$1")
+		shift
+		;;
+	esac
+done
+set -- "${POSITIONAL_ARGS[@]}"
+if [ $shouldInstall -eq 1 ]
+then
+	sudo apt-get install postgresql	-y
+fi
+if [ $# -lt 3 ] || [ -z "$3" ] || [ -z "$2" ] || [ -z "$1" ] 
+then
+	echo "Sono presenti meno di tre argomenti. Si procede con l'utilizzo di parametri default."
+	dbname="lsodrink"
+	dbusername="lsodrinkuser"
+	dbpassword="password"
+	commandfile="main.pgsql"
+else
+	dbname=$1
+	dbusername=$2
+	dbpassword=$3
+	if [ $# -lt 4 ] || [ -z "$4" ] 
+	then
+		echo "Non è presente un quarto argomento. Si cercherà di usare il file di default."
+		commandfile="command.pgsql"
+	else
+		if [ -f "$4" ] 
+		then 
+			commandfile=$4
+		else
+			echo "Non esiste un file $4. Si cercherà di usare il file di default."
+			commandfile="command.pgsql"
+		fi
+	fi
+fi
+if [ $shouldNotCreate -eq 0 ]
+then
+	query1="CREATE USER $dbusername WITH PASSWORD $dbpassword;CREATE DATABASE $dbname WITH OWNER $dbusername;\n"
+fi
+query2="\c $dbname $dbusername"
+query3=$(cat "$commandfile")
+printf "%s%s\n%s" "$query1" "$query2" "$query3" | psql -U postgres -h 127.0.0.1
