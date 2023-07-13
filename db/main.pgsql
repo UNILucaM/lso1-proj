@@ -1,6 +1,6 @@
 /*
 Definizione estensioni.
-hstore: necessaria per l'hashmap utilizzata dalla funzione get_products_ordered_by_suggested.
+hstore: necessaria per la variabile hashmap utilizzata dalla funzione get_products_ordered_by_suggested.
 */
 
 CREATE EXTENSION hstore;

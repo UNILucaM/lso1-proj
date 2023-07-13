@@ -1,6 +1,6 @@
 #!/bin/bash
 shouldInstall=0
-shouldNotCreateUser=0
+shouldNotCreate=0
 POSITIONAL_ARGS=()
 while [[ $# -gt 0 ]]; do
 	case $1 in
@@ -23,10 +23,6 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 set -- "${POSITIONAL_ARGS[@]}"
-if [ "$shouldInstall" -eq 1 ]
-then
-	sudo apt-get install postgresql	-y
-fi
 if [ $# -lt 3 ] || [ -z "$3" ] || [ -z "$2" ] || [ -z "$1" ] 
 then
 	echo "Sono presenti meno di tre argomenti. Si procede con l'utilizzo di parametri default."
@@ -54,8 +50,15 @@ else
 fi
 if [ "$shouldNotCreate" -eq 0 ]
 then
-	query1="CREATE USER $dbusername WITH PASSWORD '$dbpassword';CREATE DATABASE $dbname WITH OWNER $dbusername;\n"
+	query1="CREATE USER $dbusername WITH PASSWORD '$dbpassword';CREATE DATABASE $dbname WITH OWNER $dbusername;"
+fi
+if [ "$shouldInstall" -eq 1 ]
+then
+	sudo apt-get install postgresql	-y
+	modifyPasswordStatement=$(printf "ALTER USER postgres WITH PASSWORD '%s';\n\\q" "$dbpassword")
+	echo "$modifyPasswordStatement" | sudo -u postgres psql
 fi
 query2="\c $dbname $dbusername"
 query3=$(cat "$commandfile")
-printf "%s%s\n'%s'" "$query1" "$query2" "$query3" | psql -U postgres -h 127.0.0.1
+statement=$(printf "%s\n%s\n%s" "$query1" "$query2" "$query3")
+echo "$statement"| psql -U postgres -h 127.0.0.1
