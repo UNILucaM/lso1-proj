@@ -3,12 +3,14 @@ package com.unilucam.lsodrinkclient.DAOHTTP;
 import androidx.annotation.NonNull;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.unilucam.lsodrinkclient.DAOHTTP.OkHttp.OkHttpClientInstance;
 import com.unilucam.lsodrinkclient.DAOs.DAOProduct;
 import com.unilucam.lsodrinkclient.DTO.DTOPid;
 import com.unilucam.lsodrinkclient.DTO.DTOProductPurchase;
 import com.unilucam.lsodrinkclient.DTO.DTOPurchase;
 import com.unilucam.lsodrinkclient.entities.Product;
 import com.unilucam.lsodrinkclient.enums.ProductType;
+import com.unilucam.lsodrinkclient.exceptions.UninitializedOkHttpClientInstanceException;
 import com.unilucam.lsodrinkclient.exceptions.WrappedCRUDException;
 
 import java.io.IOException;
@@ -54,10 +56,11 @@ public class DAOHTTPProduct implements DAOProduct {
 
     private HTTPAPIProduct APIProduct;
 
-    public DAOHTTPProduct(String baseUrl){
+    public DAOHTTPProduct(String baseUrl) throws UninitializedOkHttpClientInstanceException {
         ObjectMapper objectMapper = new ObjectMapper();
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl(baseUrl)
+                .client(OkHttpClientInstance.getOkHttpClientInstance())
                 .addConverterFactory(JacksonConverterFactory.create(objectMapper))
                 .build();
         APIProduct = retrofit.create(HTTPAPIProduct.class);
