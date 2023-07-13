@@ -181,10 +181,12 @@ public class ControllerAuth extends AppCompatActivity {
                             new Intent(ControllerAuth.this, ControllerHome.class));
                 }
             } catch (WrappedCRUDException wrappedCRUDException) {
-                Log.e("ACTIVITY-AUTH", "Register failed with error: " +
+                Log.e("ACTIVITY-AUTH", "Login failed with error: " +
                         wrappedCRUDException.getWrappedException());
                 runOnUiThread(()->{
-                    //TODO showErrorDialog();
+                    ControllerUtils.showUserFriendlyErrorMessageAndLogThrowable
+                            (getApplicationContext(), "Auth", "Errore nel login.",
+                                    wrappedCRUDException);
                 });
             }
         });
@@ -230,7 +232,9 @@ public class ControllerAuth extends AppCompatActivity {
                 Log.e("ACTIVITY-AUTH", "Register failed with error: " +
                         wrappedCRUDException.getWrappedException());
                 runOnUiThread(()->{
-                    //TODO showErrorDialog();
+                    ControllerUtils.showUserFriendlyErrorMessageAndLogThrowable
+                            (getApplicationContext(), "Auth", "Errore nella registrazione.",
+                                    wrappedCRUDException);
                 });
             }
         });
