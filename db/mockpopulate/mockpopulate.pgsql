@@ -15,14 +15,12 @@ CALL insert_product_with_ingredients('Margarita', 5, 'Cocktail', NULL, 1000, ('T
 CALL insert_product_with_ingredients('Frullato alla Fragola', 3, 'Frullato', NULL, 10000, ('Latte', 700), ('Fragola', 450));
 CALL insert_product_with_ingredients('Frullato alla Menta', 3.50, 'Frullato', NULL, 10000, ('Latte', 700), ('Sciroppo alla Menta', 200));
 CALL insert_product_with_ingredients('Frullato al Limone', 3.50, 'Frullato', NULL, 10000, ('Latte', 700), ('Sciroppo al Limone', 105));
-CALL insert_product_with_ingredients('Frullato Alla Banana', 3, 'Frullato', NULL, 10000, ('Latte', 700), ('Banana', 180));
 CALL insert_product_with_ingredients('Frullato All''Albicocca', 3, 'Frullato', NULL, 10000, ('Latte', 700), ('Albicocca', 350));
 
 -- username, productPid, quantity, lastTimeBought
 INSERT INTO Sale VALUES ('AccountTest', 1, 1, DEFAULT);
 INSERT INTO Sale VALUES ('AccountTest', 3, 4, DEFAULT);
 INSERT INTO Sale VALUES ('AccountTest', 6, 2, DEFAULT);
-
 INSERT INTO Sale VALUES ('AccountTest2', 8, 5, DEFAULT);
 INSERT INTO Sale VALUES ('AccountTest2', 2, 9, DEFAULT);
 INSERT INTO Sale VALUES ('AccountTest2', 1, 2, DEFAULT);
