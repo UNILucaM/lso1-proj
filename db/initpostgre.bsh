@@ -23,7 +23,7 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 set -- "${POSITIONAL_ARGS[@]}"
-if [ $shouldInstall -eq 1 ]
+if [ "$shouldInstall" -eq 1 ]
 then
 	sudo apt-get install postgresql	-y
 fi
@@ -52,7 +52,7 @@ else
 		fi
 	fi
 fi
-if [ $shouldNotCreate -eq 0 ]
+if [ "$shouldNotCreate" -eq 0 ]
 then
 	query1="CREATE USER $dbusername WITH PASSWORD '$dbpassword';CREATE DATABASE $dbname WITH OWNER $dbusername;\n"
 fi
